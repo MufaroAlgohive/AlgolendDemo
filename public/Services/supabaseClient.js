@@ -1,59 +1,32 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm';
 
-let supabaseInstance = null;
+// We are hardcoding these to match your working repo method.
+// This guarantees the client initializes immediately without waiting for the server.
+const supabaseUrl = "https://jmnjkxfxenrudpvjprcu.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptbmpreGZ4ZW5ydWRwdmpwcmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxODkzNzUsImV4cCI6MjA4MDc2NTM3NX0.X4ZdxzHF0b9GnHklObpIHqnhWvtKjdZnLoah0EVTvHs";
 
-try {
-    // 1. Synchronous Fetch of Configuration
-    const request = new XMLHttpRequest();
-    request.open('GET', '/api/public-config', false); // false = synchronous
-    request.setRequestHeader('Accept', 'application/json');
-    request.send(null);
-
-    // 2. Validate Response
-    if (request.status === 200) {
-        const config = JSON.parse(request.responseText);
-        
-        if (config.supabaseUrl && config.supabaseAnonKey) {
-            // 3. Create Client
-            supabaseInstance = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-                auth: {
-                    storage: window.sessionStorage,
-                    autoRefreshToken: true,
-                    persistSession: true,
-                    detectSessionInUrl: true
-                }
-            });
-        }
-    } else {
-        console.error("Backend Config Error: Status", request.status);
-    }
-
-} catch (error) {
-    console.error("Supabase Client Init Failed:", error);
+// --- Sanity Check ---
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Supabase keys are missing!");
+    throw new Error("Supabase credentials are missing");
 }
 
-// 4. Fallback if initialization failed
-if (!supabaseInstance) {
-    // Show a visible error on screen so we know exactly what happened
-    const body = document.querySelector('body');
-    if (body) {
-        body.innerHTML = `
-            <div style="padding: 2rem; text-align: center; color: #c53030; background: #fff5f5; height: 100vh; display: flex; flex-direction: column; justify-content: center;">
-                <h1 style="font-size: 2rem;">Connection Failed</h1>
-                <p>Could not connect to the backend (api/public-config).</p>
-                <p>Please check the console for the specific error.</p>
-            </div>
-        `;
-    }
-    // Create a dummy client to prevent "export not found" crashes
-    supabaseInstance = {
-        auth: {
-            getSession: async () => ({ data: { session: null }, error: new Error("Client failed to load") }),
-            onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
-        },
-        from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: null, error: new Error("Client failed to load") }) }) }) })
-    };
-}
+// Create and export the Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: window.sessionStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+});
 
-// 5. Export is now guaranteed to exist
-export const supabase = supabaseInstance;
+// Global auth state listener
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+    if (!window.location.pathname.includes('/auth/login')) {
+      console.log('🔒 Session expired - redirecting to login');
+      window.location.replace('/auth/login.html');
+    }
+  }
+});
