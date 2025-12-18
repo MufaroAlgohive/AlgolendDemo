@@ -1,0 +1,187 @@
+<div class="loan-selection-card">
+  <div class="card-header">
+    <h2><i class="fas fa-money-bill-wave"></i> Loan Amount Selection</h2>
+    <p>Configure your loan terms and review the details</p>
+  </div>
+
+  <div class="loan-config-section">
+    <!-- Loan Amount Input -->
+    <div class="config-group">
+      <label class="config-label">
+        <i class="fas fa-hand-holding-usd"></i>
+        Loan Amount
+      </label>
+      <div class="input-with-prefix" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+        <span style="font-size: 1.5rem; font-weight: 600; color: var(--color-primary);">R</span>
+        <input 
+          type="number" 
+          id="loanAmountInput" 
+          step="1" 
+          value="5000"
+          placeholder="Enter amount"
+          style="flex: 1; padding: 1rem; border: 2px solid #333; border-radius: 8px; font-size: 1.5rem; font-weight: 600; text-align: center; background: #0f0f0f; color: #ffffff;"
+        >
+      </div>
+      <div id="amountError" class="error-message" style="display: none; color: #ef4444; font-size: 0.9rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="amountErrorText"></span>
+      </div>
+      <div class="slider-labels" style="margin-top: 0.5rem;">
+        <span style="font-size: 0.85rem; color: #999;">Min: R100</span>
+        <span id="maxLoanDisplay" style="font-size: 0.85rem; color: var(--color-primary); font-weight: 600;">Max: R10,000</span>
+      </div>
+    </div>
+
+    <!-- Loan Period -->
+    <div class="config-group">
+      <label class="config-label">
+        <i class="fas fa-calendar-alt"></i>
+        Loan Period (Months)
+      </label>
+      <div class="amount-display">
+        <span id="periodAmount">1</span>
+        <span style="font-size: 1.5rem; color: #999; margin-left: 0.5rem;">month<span id="periodPlural"></span></span>
+      </div>
+      <input 
+        type="range" 
+        id="periodSlider" 
+        min="1" 
+        max="24" 
+        step="1" 
+        value="1"
+        class="loan-slider"
+      >
+      <div class="slider-labels">
+        <span>1 month</span>
+        <span>24 months</span>
+      </div>
+      <div id="periodLockMessage" class="helper-text" style="color: var(--color-primary); display: none; margin-top: 0.5rem;">
+        <i class="fas fa-lock"></i> Period restrictions may apply based on your loan history
+      </div>
+    </div>
+
+    <!-- Repayment Start Date -->
+    <div class="config-group">
+      <label class="config-label">
+        <i class="fas fa-calendar-check" style="color: var(--color-primary) !important;"></i>
+        First Repayment Date
+      </label>
+      <div class="date-input-wrapper">
+        <input 
+          type="date" 
+          id="startDate" 
+          class="date-input"
+        >
+        <i class="fas fa-calendar-alt date-input-icon" aria-hidden="true"></i>
+      </div>
+      <small class="helper-text">Your first payment will be due on this date (within the current month)</small>
+    </div>
+  </div>
+
+  <!-- Loan Summary Preview -->
+  <div class="loan-summary">
+    <h3><i class="fas fa-file-invoice-dollar"></i> Loan Summary</h3>
+    <div class="fee-notice" style="background: rgb(var(--color-primary-rgb) / 0.1); border: 1px solid rgb(var(--color-primary-rgb) / 0.3); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; color: var(--color-primary);">
+      <i class="fas fa-info-circle"></i>
+      <div style="line-height: 1.6;">
+        <strong>Monthly Loan Fees:</strong><br>
+        • <strong>Initiation Fee:</strong> 15% of loan amount (charged every month)<br>
+        • <strong>Admin Fee:</strong> R60/month<br>
+        • <strong>Credit Life Premium:</strong> 0.45% of the approved loan (spread monthly)<br>
+        <small style="color: var(--color-primary); font-size: 0.85rem; display: block; margin-top: 0.5rem;">
+          <i class="fas fa-calendar-day" style="color: inherit;"></i> Admin fee is prorated based on actual days until first payment (R2/day)
+        </small>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <span class="summary-label">Loan Amount</span>
+        <span class="summary-value" id="summaryAmount">R 5,000.00</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Interest Rate (Yearly)</span>
+        <span class="summary-value" id="summaryRate">20.0%</span>
+      </div>
+
+      <div class="summary-item">
+        <span class="summary-label">Loan Period</span>
+        <span class="summary-value" id="summaryPeriod">1 Month</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Total Interest</span>
+        <span class="summary-value" id="summaryInterest">R 1,000.00</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">
+          Total Admin Fees (R60/month)
+          <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="Prorated for 1-month loans based on days"></i>
+        </span>
+        <span class="summary-value" id="summaryFee">R 60.00</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">
+          Total Initiation Fees (15% per month)
+          <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="15% of loan amount charged every month"></i>
+        </span>
+        <span class="summary-value" id="summaryInitiationFee">R 165.00</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">
+          Credit Life Premium (0.45% of principal)
+          <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="0.45% of loan amount, divided equally across your term"></i>
+        </span>
+        <span class="summary-value" id="summaryCreditLife">R 0.00</span>
+      </div>
+      <div class="summary-item highlight">
+        <span class="summary-label">Monthly Repayment</span>
+        <span class="summary-value" id="summaryMonthly">R 6,060.00</span>
+      </div>
+      <div class="summary-item highlight">
+        <span class="summary-label">Total Repayment</span>
+        <span class="summary-value" id="summaryTotal">R 6,060.00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Signature Section -->
+  <div class="signature-section">
+    <h3><i class="fas fa-signature"></i> Digital Signature</h3>
+    <p class="signature-disclaimer">
+      By signing below, I acknowledge that I have read and understood the loan terms and conditions. 
+      I agree to repay the loan amount plus interest according to the schedule provided.
+    </p>
+    
+    <div class="signature-canvas-container">
+      <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+      <button class="clear-signature-btn" onclick="clearSignature()">
+        <i class="fas fa-eraser"></i> Clear
+      </button>
+    </div>
+    <small class="helper-text">
+      <i class="fas fa-info-circle"></i> Draw your signature in the box above
+    </small>
+
+    <div class="terms-checkbox">
+      <label class="checkbox-container">
+        <input type="checkbox" id="termsCheckbox">
+        <span class="checkmark"></span>
+        <span class="checkbox-label">
+          I agree to the <a href="#" class="link">Terms and Conditions</a> and 
+          <a href="#" class="link">Privacy Policy</a>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="action-buttons">
+    <button class="btn-secondary" onclick="closeLoanModal()">
+      <i class="fas fa-arrow-left"></i>
+      Back
+    </button>
+    <button class="btn-primary" id="submitBtn" onclick="prepareLoanApplication()">
+      Continue to Confirmation
+      <i class="fas fa-arrow-right"></i>
+    </button>
+  </div>
+</div>

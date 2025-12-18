@@ -1,0 +1,141 @@
+<!-- Dashboard page -->
+<div class="page-container">
+  <div class="content-wrapper">
+    <div class="dashboard-wrapper">
+      <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+          <div class="header-left">
+            <h1>Portfolio Overview</h1>
+            <p id="currentDate">Tuesday, November 11, 2025</p>
+          </div>
+        </div>
+
+    <!-- Top Section: Key Metrics + Credit Score -->
+    <div class="top-section">
+      <div class="metrics-grid">
+        <div class="card">
+          <div class="card-label">Outstanding Balance</div>
+          <div class="card-value" id="currentBalance">R 0.00</div>
+          <div class="card-subtitle">Total principal remaining</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Next Payment Due</div>
+          <div class="card-value" id="nextPaymentAmount">R 0.00</div>
+          <div class="card-subtitle" id="nextPaymentDate">Due date pending</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Total Borrowed</div>
+          <div class="card-value" id="totalBorrowed">R 0.00</div>
+          <div class="card-subtitle">Lifetime borrowing capacity</div>
+          <div class="card-change positive">↑ 12.5%</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Total Repaid</div>
+          <div class="card-value" id="totalRepaid">R 0.00</div>
+          <div class="card-subtitle">Successfully settled</div>
+          <div class="card-change positive">↑ 8.2%</div>
+        </div>
+      </div>
+      <div class="credit-score-card card">
+        <div class="card-label">Credit Score</div>
+        <div class="card-value" id="creditScore">0</div>
+        <div class="card-subtitle">Excellent Financial Standing</div>
+        <div class="score-meter">
+          <div class="score-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Grid -->
+    <div class="quick-actions-section">
+      <div class="section-title-bar">
+        <h2>Quick Actions</h2>
+      </div>
+      <div class="quick-actions-grid">
+        <button class="action-card action-primary" onclick="createNewApplication()">
+          <i class="fas fa-plus-circle"></i>
+          <div class="action-title">New Loan</div>
+          <div class="action-subtitle">Apply for a new loan</div>
+        </button>
+        
+        <button class="action-card action-secondary" onclick="makePayment()">
+          <i class="fas fa-credit-card"></i>
+          <div class="action-title">Make Payment</div>
+          <div class="action-subtitle">Process a payment</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Loans Section -->
+    <div class="loans-section">
+      <div class="section-title-bar">
+        <h2>Active Loans</h2>
+        <button class="btn-view-all" onclick="openLoansModule()">View All →</button>
+      </div>
+      <div class="loans-grid" id="activeLoansGrid">
+        <!-- Loans will be populated here -->
+      </div>
+    </div>
+
+    <!-- Bottom Grid: Transactions & Applications -->
+    <div class="bottom-grid">
+      <div class="transactions-section">
+        <div class="section-title-bar">
+          <h2>Recent Transactions</h2>
+          <button class="btn-view-all" onclick="openTransactionsModule()">View All →</button>
+        </div>
+        <div class="transaction-list" id="transactionList">
+          <!-- Transactions will be populated here -->
+        </div>
+      </div>
+
+      <div class="applications-section">
+        <div class="section-title-bar">
+          <h2>Recent Applications</h2>
+          <button class="btn-view-all" onclick="openApplicationsModule()">View All →</button>
+        </div>
+        <div class="application-list" id="applicationList">
+          <!-- Applications will be populated here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+      <div class="chart-card">
+        <div class="section-title-bar">
+          <h2>Repayment Trends</h2>
+          <div class="chart-period-selector">
+            <button class="period-btn active" onclick="updateChartPeriod('6m')">6M</button>
+            <button class="period-btn" onclick="updateChartPeriod('1y')">1Y</button>
+            <button class="period-btn" onclick="updateChartPeriod('all')">All</button>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="repaymentChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="section-title-bar">
+          <h2>Loan Breakdown</h2>
+        </div>
+        <div class="chart-container">
+          <canvas id="loanBreakdownChart"></canvas>
+        </div>
+      </div>
+    </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Application Module Container -->
+<div id="edit-module-container" class="module-overlay hidden">
+  <div id="edit-module-content" class="module-content"></div>
+</div>
+
+<link rel="stylesheet" href="/user-portal/modules-css/edit-application.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="/user-portal/pages-js/dashboard.js"></script>

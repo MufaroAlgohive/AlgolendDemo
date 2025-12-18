@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zwane portal</title>
+  
+  <link rel="stylesheet" href="/shared/theme.css">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <link rel="stylesheet" href="/user-portal/style.css">
+  
+  <!-- Connecting Layout Styles --->
+  <link rel="stylesheet" href="/user-portal/layouts/navbar.css">
+  <link rel="stylesheet" href="/user-portal/layouts/sidebar.css">
+  
+  <script type="module" src="/shared/theme-init.js"></script>
+
+  <!-- Immediate Auth Check - Block page load if not authenticated -->
+  <script type="module">
+    import { supabase } from '/Services/supabaseClient.js';
+    
+    // Run auth check IMMEDIATELY before anything else loads
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.log('⛔ No session - redirecting to login');
+        window.location.replace('/auth/login.html');
+        throw new Error('Not authenticated');
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (!profile || profile.role !== 'borrower') {
+        console.log('⛔ Not a borrower - redirecting to login');
+        await supabase.auth.signOut();
+        window.location.replace('/auth/login.html');
+        throw new Error('Unauthorized role');
+      }
+    })();
+  </script>
+</head>
+<body>
+
+
+  <!-- Navbar (always at the top, company name visible) -->
+  <nav id="navbar"></nav>
+
+  <div class="dashboard-container">
+    <!-- Sidebar (starts below navbar) -->
+    <div id="sidebar"></div>
+    <!-- Main Content Area (neatly positioned) -->
+    <main id="main-content"></main>
+  </div>
+
+
+
+  <script src="/user-portal/script.js"></script>
+</body>
+</html>

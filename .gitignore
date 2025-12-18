@@ -1,0 +1,16 @@
+# Node
+node_modules/
+
+# Built admin bundle
+/public/admin/dist/
+
+# Logs
+npm-debug.log*
+ 
+# Env
+#.env
+#.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db

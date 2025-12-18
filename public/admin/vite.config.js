@@ -1,0 +1,42 @@
+import { resolve } from 'path';
+
+export default {
+  base: '/', 
+  resolve: {
+    alias: {
+      '@shared': resolve(__dirname, '../shared')
+    }
+  },
+  server: {
+    host: true,
+    hmr: {
+      clientPort: 443, 
+    }
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        // Core
+        main: resolve(__dirname, 'index.html'),
+        dashboard: resolve(__dirname, 'dashboard.html'),
+        settings: resolve(__dirname, 'settings.html'),
+        users: resolve(__dirname, 'users.html'),
+
+        // Applications
+        applications: resolve(__dirname, 'applications.html'),
+        applicationDetail: resolve(__dirname, 'application-detail.html'),
+        createApplicationStep1: resolve(__dirname, 'create-application-step1.html'),
+        
+        // Payments
+        incomingPayments: resolve(__dirname, 'incoming-payments.html'),
+        outgoingPayments: resolve(__dirname, 'outgoing-payments.html'),
+        
+        // Analytics 
+        analytics: resolve(__dirname, 'analytics.html'),
+
+        // Financials 
+        financials: resolve(__dirname, 'financials.html')
+      },
+    },
+  },
+};

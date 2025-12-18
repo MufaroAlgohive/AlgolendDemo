@@ -1,0 +1,80 @@
+<!-- Transcripts page -->
+<div class="page-container">
+  <div class="content-wrapper">
+    <div class="transcripts-wrapper">
+      <div class="transcripts-container">
+<section class="transcripts-page">
+  <div class="transcripts-header">
+    <div>
+      <p class="eyebrow">Borrower Workspace</p>
+      <h1>Credit Transcripts &amp; Documents</h1>
+      <p class="lead">
+        Review the most recent bureau decisioning data and download the supporting documents
+        you have already uploaded for this application.
+      </p>
+    </div>
+    <button id="refreshTranscriptsBtn" class="refresh-btn">
+      <i class="fa-solid fa-rotate"></i>
+      Refresh data
+    </button>
+  </div>
+
+  <div id="transcriptsAlert" class="transcripts-alert info">
+    <i class="fa-solid fa-circle-notch fa-spin"></i>
+    Loading your credit data...
+  </div>
+
+  <div class="transcripts-layout">
+    <div class="transcripts-column">
+      <article class="card summary-card" id="creditSummaryCard">
+        <header>
+          <h2>Credit Summary</h2>
+          <span id="creditCheckedAt" class="meta">–</span>
+        </header>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <p>Score</p>
+            <h3 id="creditScoreValue">—</h3>
+          </div>
+          <div class="summary-item">
+            <p>Risk Category</p>
+            <h3 id="creditRiskValue">—</h3>
+          </div>
+          <div class="summary-item">
+            <p>Recommendation</p>
+            <h3 id="creditRecommendationValue">—</h3>
+          </div>
+        </div>
+        <p id="creditRecommendationReason" class="summary-reason">Upload a credit report to see insights.</p>
+      </article>
+
+      <article class="card" id="creditDetailsCard">
+        <header>
+          <h3>Detailed Metrics</h3>
+        </header>
+        <div id="creditMetricsGrid" class="metrics-grid"></div>
+      </article>
+
+      <article class="card" id="creditHistoryCard">
+        <header>
+          <h3>Previous Credit Checks</h3>
+        </header>
+        <div id="creditHistoryList" class="history-list"></div>
+      </article>
+    </div>
+
+    <aside class="transcripts-column docs-column">
+      <article class="card document-card">
+        <header>
+          <h3>Supporting Documents</h3>
+          <p>Download the files currently stored for your account.</p>
+        </header>
+        <div id="documentActions" class="document-actions"></div>
+      </article>
+    </aside>
+  </div>
+</section>
+      </div>
+    </div>
+  </div>
+</div>

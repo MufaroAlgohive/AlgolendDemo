@@ -1,0 +1,224 @@
+<!-- Support page -->
+<div class="page-container">
+  <div class="content-wrapper">
+    <div class="dashboard-wrapper">
+      <div class="dashboard-container">
+        <!-- Header -->
+        <div class="dashboard-header">
+          <div class="header-left">
+            <h1>Support & Help Center</h1>
+            <p>Get help with your account, loans, and payments</p>
+          </div>
+        </div>
+
+        <!-- Contact Cards -->
+        <div class="top-section">
+          <div class="metrics-grid">
+            <div class="card">
+              <div class="card-label">
+                <i class="fas fa-envelope"></i> Email Support
+              </div>
+              <div class="card-value">admin@zwanefin.co.za</div>
+              <div class="card-subtitle">Response within 24 hours</div>
+              <a href="mailto:support@zwanefinance.com" class="btn-contact">
+                <i class="fas fa-paper-plane"></i> Send Email
+              </a>
+            </div>
+            
+            <div class="card">
+              <div class="card-label">
+                <i class="fas fa-phone"></i> Phone Support
+              </div>
+              <div class="card-value">+27 10 500 09788</div>
+              <div class="card-subtitle">Mon - Fri, 8:00 AM - 5:00 PM</div>
+              <a href="tel:+27112345678" class="btn-contact">
+                <i class="fas fa-phone-alt"></i> Call Now
+              </a>
+            </div>
+            
+            <div class="card">
+              <div class="card-label">
+                <i class="fas fa-comments"></i> Live Chat
+              </div>
+              <div class="card-value">Chat with us</div>
+              <div class="card-subtitle">Available 24/7</div>
+              <button class="btn-contact" onclick="openLiveChat()">
+                <i class="fas fa-comment-dots"></i> Start Chat
+              </button>
+            </div>
+            
+            <div class="card">
+              <div class="card-label">
+                <i class="fas fa-map-marker-alt"></i> Visit Us
+              </div>
+              <div class="card-value">Head Office</div>
+              <div class="card-subtitle">123 Finance St, Johannesburg</div>
+              <a href="https://maps.google.com" target="_blank" class="btn-contact">
+                <i class="fas fa-directions"></i> Get Directions
+                <!-- we will add the actual location later -->
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- FAQ Section -->
+        <div class="loans-section">
+          <div class="section-title-bar">
+            <h2><i class="fas fa-question-circle"></i> Frequently Asked Questions</h2>
+          </div>
+          <div class="faq-container">
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>What service do you offer?</span>
+              </div>
+              <div class="faq-answer">
+                We provide financing and insurance solutions for both individuals and businesses.
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>How do I apply for financing?</span>
+              </div>
+              <div class="faq-answer">
+               Visit your nearest branch or contact our Customer Care Centre on 069 119 5046. Please remember to bring your:<br>
+               <br>
+
+Original ID document<br>
+Three months’ bank statements<br>
+Latest payslip<br>
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>How long does approval take?</span>
+              </div>
+              <div class="faq-answer">
+                Most applications are reviewed within 24-hours. You'll receive notifications about your application status. Once approved, funds are typically disbursed within 1-2 business days.
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>When will I be eligible for an increase in my loan amount?</span>
+              </div>
+              <div class="faq-answer">
+        Zwane Financial Services has a policy requiring all new clients to take at least three one-month loans, based on their affordability and credit report. After completing these three loans, we begin to consider increasing the loan amount and terms.
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>Does your financing require upfront payments?</span>
+              </div>
+              <div class="faq-answer">
+            We will never ask for an upfront fee. That is illegal. Please contact us should you be required to pay an upfront fee by any of our consultants.
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>Can I use my SRD SASSA grant to apply for financing?</span>
+              </div>
+              <div class="faq-answer">
+            No.
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>Which bank accounts do you accept?</span>
+              </div>
+              <div class="faq-answer">
+    All major bank accounts, except Discovery.
+Tymebank applications are processed in branch.
+              </div>
+            </div>
+            
+            <div class="faq-item">
+              <div class="faq-question" onclick="toggleFAQ(this)">
+                <i class="fas fa-chevron-right"></i>
+                <span>Will I qualify even if I have debt review on my credit reports?</span>
+              </div>
+              <div class="faq-answer">
+             Since everyone's financial situation is different, we recommend visiting your nearest branch or contact our WhatsApp client line for an assessment of your affordability and credit report.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Help Resources -->
+        <div class="bottom-grid">
+          <div class="transactions-section">
+            <div class="section-title-bar">
+              <h2><i class="fas fa-book"></i> Help Resources</h2>
+            </div>
+            <div class="help-resources">
+              <a href="#" class="resource-link" onclick="openResource('user-guide')">
+                <i class="fas fa-file-alt"></i>
+                <div>
+                  <div class="resource-title">User Guide</div>
+                  <div class="resource-desc">Complete guide to using the platform</div>
+                </div>
+              </a>
+              <a href="#" class="resource-link" onclick="openResource('terms')">
+                <i class="fas fa-file-contract"></i>
+                <div>
+                  <div class="resource-title">Terms & Conditions</div>
+                  <div class="resource-desc">Loan terms and agreements</div>
+                </div>
+              </a>
+              <a href="#" class="resource-link" onclick="openResource('privacy')">
+                <i class="fas fa-shield-alt"></i>
+                <div>
+                  <div class="resource-title">Privacy Policy</div>
+                  <div class="resource-desc">How we protect your data</div>
+                </div>
+              </a>
+              <a href="#" class="resource-link" onclick="openResource('complaints')">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                  <div class="resource-title">Complaints Procedure</div>
+                  <div class="resource-desc">How to lodge a complaint</div>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <div class="applications-section">
+            <div class="section-title-bar">
+              <h2><i class="fas fa-info-circle"></i> Need More Help?</h2>
+            </div>
+            <div class="contact-form-card card">
+              <p>
+                Can't find what you're looking for? Send us a message and we'll get back to you as soon as possible.
+              </p>
+              <form onsubmit="submitSupportRequest(event)">
+                <div>
+                  <label>Subject</label>
+                  <input type="text" id="supportSubject" placeholder="What do you need help with?" required>
+                </div>
+                <div>
+                  <label>Message</label>
+                  <textarea id="supportMessage" rows="4" placeholder="Describe your issue or question..." required></textarea>
+                </div>
+                <button type="submit">
+                  <i class="fas fa-paper-plane"></i> Send Message
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
