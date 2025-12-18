@@ -16,14 +16,6 @@
 *.css.map
 *.js.map
 
-# Local Environment/Sensitive files
-.env.local
-.env.*.local
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-
 # IDE/OS generated files
 .DS_Store
 Thumbs.db
