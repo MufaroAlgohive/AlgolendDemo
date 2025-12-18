@@ -3,8 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const crypto = require('crypto');
-// Your .env config is correct
-require('dotenv').config({ path: path.join(__dirname, 'public', 'user', '.env') });
+
+// --- FIX 1: Standard .env config for Production (Vercel) ---
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -19,7 +20,7 @@ app.use(express.json({
     }
 }));
  
-// --- User Portal API routes (Your code) ---
+// --- User Portal API routes ---
 const tillSlipRoute = require('./public/user/routes/tillSlipRoute');
 const bankStatementRoute = require('./public/user/routes/bankStatementRoute');
 const idcardRoute = require('./public/user/routes/idcardRoute');
@@ -487,7 +488,7 @@ app.delete('/api/docuseal/submissions/:submissionId', async (req, res) => {
     }
 });
 
-// DocuSeal Webhook Receiver – updates docuseal_submissions when DocuSeal sends events
+// DocuSeal Webhook Receiver
 app.post('/api/docuseal/webhook', async (req, res) => {
     try {
         // Verify webhook signature if secret is configured
@@ -590,7 +591,7 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                 break;
             case 'form.completed':
                 await updateBySubmitter({ status: 'completed', completed_at: data.completed_at || now, metadata: data.values || data.metadata || {} });
-                // After a submitter completes the form, mark the related application as Contract Signed (step 5)
+                // After a submitter completes the form, mark the related application as Contract Signed
                 try {
                     const applicationId = data?.metadata?.application_id || data?.application_id || data?.submission?.metadata?.application_id || data?.submission?.application_id || null;
                     if (applicationId) {
@@ -606,10 +607,8 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                 break;
             case 'form.declined':
                 try {
-                    // Mark the submitter row as declined (use submitter id present in data.id)
                     await updateBySubmitter({ status: 'declined', declined_at: data.declined_at || now, metadata: data.values || data.metadata || {} });
 
-                    // Also update any submission-level rows by submission.id if available
                     const submissionId = data.submission?.id || data.submission_id;
                     if (submissionId) {
                         await supabase
@@ -650,7 +649,6 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                     console.error('DocuSeal webhook upsert error:', error);
                 }
                 break;
-            // Handle updates where submitter status changes (e.g. declined) or submission metadata updates
             case 'submitter.updated':
             case 'submitter.status_changed':
             case 'submission.updated':
@@ -658,7 +656,6 @@ app.post('/api/docuseal/webhook', async (req, res) => {
             case 'submitter.declined':
             case 'form.declined':
                 try {
-                    // If submitters array provided, upsert each submitter (status may have changed)
                     const submitters = data.submitters || [];
                     if (submitters.length > 0) {
                         for (const submitter of submitters) {
@@ -682,7 +679,6 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                         }
                     }
 
-                    // If submission-level status provided, update rows by submission_id
                     const submissionId = data.id || data.submission_id;
                     if (submissionId && data.status) {
                         await supabase
@@ -707,18 +703,16 @@ app.post('/api/docuseal/webhook', async (req, res) => {
 
 
 // =================================================================
-// --- 5. ADMIN & PUBLIC STATIC FILE SERVING (THE FIX) ---
+// --- 5. ADMIN & PUBLIC STATIC FILE SERVING ---
 // =================================================================
 
-// 5a. Define the path to your *BUILT* admin app's 'dist' folderr
 const adminDistPath = path.join(__dirname, 'public', 'admin', 'dist');
 const adminAssetsPath = path.join(adminDistPath, 'assets');
 
-// ★★★ THIS IS THE FIX YOU NEEDED ★★★
-// This captures requests to /assets/... and points them to public/admin/dist/assets
+// Serve assets from public/admin/dist/assets
 app.use('/assets', express.static(adminAssetsPath));
 
-// Fallback for cached asset names (serves latest hash when old file requested)
+// Fallback for cached asset names
 app.get('/assets/:assetName', (req, res, next) => {
     const requestedFile = path.join(adminAssetsPath, req.params.assetName);
     if (fs.existsSync(requestedFile)) {
@@ -747,11 +741,10 @@ app.get('/assets/:assetName', (req, res, next) => {
     return next();
 });
 
-// 5b. Serve all static assets (CSS, JS) from the 'dist' folder
-// This uses the '/admin' prefix
+// Serve admin static files
 app.use('/admin', express.static(adminDistPath));
 
-// 5c. Serve the REST of the 'public' folder (for login.html, etc.)
+// Serve general public files
 app.use(express.static(path.join(__dirname, 'public')));
 
 
@@ -830,3 +823,6 @@ app.listen(PORT, () => {
     // Start notification scheduler
     startNotificationScheduler();
 });
+
+// --- FIX 2: Export for Vercel Serverless Function ---
+module.exports = app;
