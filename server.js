@@ -21,24 +21,20 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // 1. Allow internal Codespace/Local requests (no origin)
+        // Allow requests with no origin (like local file access or curl)
         if (!origin) return callback(null, true);
         
-        // 2. Allow if in our fixed list
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            return callback(null, true);
-        }
+        // Match against fixed list
+        if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
 
-        // 3. ADAPTIVE: Allow any .vercel.app or .githubpreview.dev (Codespace) URLs
+        // Allow Vercel and GitHub Preview (Codespace) dynamic URLs
         if (origin.endsWith('.vercel.app') || origin.endsWith('.githubpreview.dev')) {
             return callback(null, true);
         }
 
-        return callback(new Error('CORS blocked by server'), false);
+        return callback(new Error('CORS blocked by adaptive policy'), false);
     },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    credentials: true
 }));
 // Middleware
 app.use(express.json({
