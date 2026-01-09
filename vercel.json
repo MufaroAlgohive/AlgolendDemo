@@ -6,23 +6,18 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "server.js"
+      "source": "/api/:path*",
+      "destination": "/server.js"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/public/admin/dist/assets/$1",
-      "continue": true
+      "source": "/admin/:path*",
+      "destination": "/server.js"
     },
     {
-      "src": "/admin/(.*)",
-      "dest": "server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "source": "/((?!assets|.*\\..*).*)",
+      "destination": "/server.js"
     }
   ],
   "headers": [
@@ -31,7 +26,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' http://localhost:5001 https://algolend-demo.vercel.app;"
+          "value": "frame-ancestors 'self' https://zw-express.vercel.app http://localhost:5001 https://algolend-demo.vercel.app;"
         },
         {
           "key": "X-Frame-Options",
