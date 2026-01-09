@@ -4,9 +4,9 @@
   --color-primary-hover: #cf5f20;
   --color-primary-soft: #ff9f5a;
   --color-primary-strong: #b14a18;
-  --color-secondary: #F97316;
-  --color-secondary-rgb: 249 115 22;
-  --color-secondary-soft: #ffb26b;
+  --color-secondary: #000000;
+  --color-secondary-rgb: 0 0 0;
+  --color-secondary-soft: #333333;
   --color-tertiary: #FACC15;
   --color-tertiary-rgb: 250 204 21;
   --color-surface: #f8fafc;

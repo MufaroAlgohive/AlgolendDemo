@@ -3,12 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const crypto = require('crypto');
-
-// --- FIX 1: Standard .env config for Production (Vercel) ---
-require('dotenv').config();
+// Your .env config is correct
+require('dotenv').config({ path: path.join(__dirname, 'public', 'user', '.env') });
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json({
@@ -19,12 +18,12 @@ app.use(express.json({
         }
     }
 }));
- 
-// --- User Portal API routes ---
+
+// --- User Portal API routes (Your code) ---
 const tillSlipRoute = require('./public/user/routes/tillSlipRoute');
 const bankStatementRoute = require('./public/user/routes/bankStatementRoute');
 const idcardRoute = require('./public/user/routes/idcardRoute');
-const kyc = require(path.join(__dirname, 'public', 'user', 'kycService'));
+const kyc = require(path.join(__dirname, 'public', 'user-portal', 'Services', 'kycService'));
 const creditCheckService = require('./services/creditCheckService');
 const { supabase, supabaseService } = require('./config/supabaseServer');
 const { startNotificationScheduler } = require('./services/notificationScheduler');
@@ -41,6 +40,7 @@ const docuSealHeaders = {
 };
 
 const DEFAULT_AUTH_OVERLAY_COLOR = '#EA580C';
+const DEFAULT_COMPANY_NAME = 'Your Company';
 
 const DEFAULT_CAROUSEL_SLIDES = [
     {
@@ -59,6 +59,7 @@ const DEFAULT_CAROUSEL_SLIDES = [
 
 const DEFAULT_SYSTEM_SETTINGS = {
     id: 'global',
+    company_name: DEFAULT_COMPANY_NAME,
     primary_color: '#E7762E',
     secondary_color: '#F97316',
     tertiary_color: '#FACC15',
@@ -85,31 +86,6 @@ const normalizeBoolean = (value, fallback = false) => {
     return fallback;
 };
 
-const buildClientSafeEnv = () => ({
-    supabaseUrl: process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
-    docuSealTemplateId: process.env.VITE_DOCUSEAL_TEMPLATE_ID || process.env.DOCUSEAL_TEMPLATE_ID || '',
-    docuSealEnabled: normalizeBoolean(process.env.VITE_DOCUSEAL_ENABLED, false)
-});
-
-app.get('/api/public-config', (req, res) => {
-    try {
-        const clientConfig = buildClientSafeEnv();
-
-        if (!clientConfig.supabaseUrl || !clientConfig.supabaseAnonKey) {
-            return res.status(500).json({
-                error: 'Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY.'
-            });
-        }
-
-        res.set('Cache-Control', 'no-store, max-age=0');
-        return res.json(clientConfig);
-    } catch (error) {
-        console.error('Public config request failed:', error.message || error);
-        return res.status(500).json({ error: 'Unable to load client configuration' });
-    }
-});
-
 const normalizeHexColor = (value, fallback) => {
     if (!value) return fallback;
     let hex = `${value}`.trim().replace('#', '');
@@ -120,6 +96,11 @@ const normalizeHexColor = (value, fallback) => {
         return fallback;
     }
     return `#${hex.toUpperCase()}`;
+};
+
+const normalizeCompanyName = (value) => {
+    const name = typeof value === 'string' ? value.trim() : '';
+    return name || DEFAULT_SYSTEM_SETTINGS.company_name;
 };
 
 const sanitizeSlide = (slide = {}, fallback = {}) => {
@@ -139,6 +120,7 @@ const normalizeCarouselSlides = (slides) => {
 const hydrateSystemSettings = (settings = {}) => ({
     ...DEFAULT_SYSTEM_SETTINGS,
     ...settings,
+    company_name: normalizeCompanyName(settings?.company_name),
     auth_background_flip: normalizeBoolean(settings?.auth_background_flip, DEFAULT_SYSTEM_SETTINGS.auth_background_flip),
     auth_overlay_color: normalizeHexColor(settings?.auth_overlay_color, DEFAULT_SYSTEM_SETTINGS.auth_overlay_color),
     auth_overlay_enabled: normalizeBoolean(settings?.auth_overlay_enabled, DEFAULT_SYSTEM_SETTINGS.auth_overlay_enabled),
@@ -180,7 +162,7 @@ async function loadSystemSettings(forceRefresh = false) {
 
 async function docuSealRequest(method, endpoint, data) {
     if (!isDocuSealReady()) {
-        throw new Error('DocuSeal configuration missing');
+        throw new Error('DocuSeal configuration missing');               
     }
 
     return axios({
@@ -215,8 +197,8 @@ function buildDocuSealSubmission(applicationData = {}, profileData = {}) {
                         ? new Date(applicationData.created_at).toLocaleDateString('en-ZA')
                         : '',
                     contract_date: new Date().toLocaleDateString('en-ZA'),
-                    first_payment_date: applicationData.start_date
-                        ? new Date(applicationData.start_date).toLocaleDateString('en-ZA')
+                    first_payment_date: applicationData.repayment_start_date
+                        ? new Date(applicationData.repayment_start_date).toLocaleDateString('en-ZA')
                         : ''
                 },
                 metadata: {
@@ -488,7 +470,7 @@ app.delete('/api/docuseal/submissions/:submissionId', async (req, res) => {
     }
 });
 
-// DocuSeal Webhook Receiver
+// DocuSeal Webhook Receiver – updates docuseal_submissions when DocuSeal sends events
 app.post('/api/docuseal/webhook', async (req, res) => {
     try {
         // Verify webhook signature if secret is configured
@@ -591,7 +573,7 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                 break;
             case 'form.completed':
                 await updateBySubmitter({ status: 'completed', completed_at: data.completed_at || now, metadata: data.values || data.metadata || {} });
-                // After a submitter completes the form, mark the related application as Contract Signed
+                // After a submitter completes the form, mark the related application as Contract Signed (step 5)
                 try {
                     const applicationId = data?.metadata?.application_id || data?.application_id || data?.submission?.metadata?.application_id || data?.submission?.application_id || null;
                     if (applicationId) {
@@ -607,8 +589,10 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                 break;
             case 'form.declined':
                 try {
+                    // Mark the submitter row as declined (use submitter id present in data.id)
                     await updateBySubmitter({ status: 'declined', declined_at: data.declined_at || now, metadata: data.values || data.metadata || {} });
 
+                    // Also update any submission-level rows by submission.id if available
                     const submissionId = data.submission?.id || data.submission_id;
                     if (submissionId) {
                         await supabase
@@ -649,6 +633,7 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                     console.error('DocuSeal webhook upsert error:', error);
                 }
                 break;
+            // Handle updates where submitter status changes (e.g. declined) or submission metadata updates
             case 'submitter.updated':
             case 'submitter.status_changed':
             case 'submission.updated':
@@ -656,6 +641,7 @@ app.post('/api/docuseal/webhook', async (req, res) => {
             case 'submitter.declined':
             case 'form.declined':
                 try {
+                    // If submitters array provided, upsert each submitter (status may have changed)
                     const submitters = data.submitters || [];
                     if (submitters.length > 0) {
                         for (const submitter of submitters) {
@@ -679,6 +665,7 @@ app.post('/api/docuseal/webhook', async (req, res) => {
                         }
                     }
 
+                    // If submission-level status provided, update rows by submission_id
                     const submissionId = data.id || data.submission_id;
                     if (submissionId && data.status) {
                         await supabase
@@ -703,48 +690,67 @@ app.post('/api/docuseal/webhook', async (req, res) => {
 
 
 // =================================================================
-// --- 5. ADMIN & PUBLIC STATIC FILE SERVING ---
+// --- 5. ADMIN & PUBLIC STATIC FILE SERVING (THE FIX) ---
 // =================================================================
 
+// 5a. Define the path to your *BUILT* admin app's 'dist' folder
 const adminDistPath = path.join(__dirname, 'public', 'admin', 'dist');
 const adminAssetsPath = path.join(adminDistPath, 'assets');
+const adminSourcePath = path.join(__dirname, 'public', 'admin');
+const adminBuildExists = fs.existsSync(path.join(adminDistPath, 'index.html'));
 
-// Serve assets from public/admin/dist/assets
-app.use('/assets', express.static(adminAssetsPath));
-
-// Fallback for cached asset names
-app.get('/assets/:assetName', (req, res, next) => {
-    const requestedFile = path.join(adminAssetsPath, req.params.assetName);
-    if (fs.existsSync(requestedFile)) {
-        return res.sendFile(requestedFile);
+// Helper to pick the built file when it exists, otherwise fall back to source HTML.
+const resolveAdminFile = (fileName) => {
+    const builtFile = path.join(adminDistPath, fileName);
+    if (adminBuildExists && fs.existsSync(builtFile)) {
+        return builtFile;
     }
+    return path.join(adminSourcePath, fileName);
+};
 
-    const dotIndex = req.params.assetName.lastIndexOf('.');
-    const dashIndex = req.params.assetName.indexOf('-');
-    if (dotIndex === -1 || dashIndex === -1) {
-        return next();
-    }
+if (adminBuildExists) {
+    // ★★★ THIS IS THE FIX YOU NEEDED ★★★
+    // This captures requests to /assets/... and points them to public/admin/dist/assets
+    app.use('/assets', express.static(adminAssetsPath));
 
-    const baseName = req.params.assetName.slice(0, dashIndex);
-    const extension = req.params.assetName.slice(dotIndex);
-
-    try {
-        const files = fs.readdirSync(adminAssetsPath);
-        const match = files.find(file => file.startsWith(`${baseName}-`) && file.endsWith(extension));
-        if (match) {
-            return res.sendFile(path.join(adminAssetsPath, match));
+    // Fallback for cached asset names (serves latest hash when old file requested)
+    app.get('/assets/:assetName', (req, res, next) => {
+        const requestedFile = path.join(adminAssetsPath, req.params.assetName);
+        if (fs.existsSync(requestedFile)) {
+            return res.sendFile(requestedFile);
         }
-    } catch (err) {
-        console.error('Asset fallback error:', err);
-    }
 
-    return next();
-});
+        const dotIndex = req.params.assetName.lastIndexOf('.');
+        const dashIndex = req.params.assetName.indexOf('-');
+        if (dotIndex === -1 || dashIndex === -1) {
+            return next();
+        }
 
-// Serve admin static files
-app.use('/admin', express.static(adminDistPath));
+        const baseName = req.params.assetName.slice(0, dashIndex);
+        const extension = req.params.assetName.slice(dotIndex);
 
-// Serve general public files
+        try {
+            const files = fs.readdirSync(adminAssetsPath);
+            const match = files.find(file => file.startsWith(`${baseName}-`) && file.endsWith(extension));
+            if (match) {
+                return res.sendFile(path.join(adminAssetsPath, match));
+            }
+        } catch (err) {
+            console.error('Asset fallback error:', err);
+        }
+
+        return next();
+    });
+
+    // 5b. Serve all static assets (CSS, JS) from the 'dist' folder
+    // This uses the '/admin' prefix
+    app.use('/admin', express.static(adminDistPath));
+} else {
+    console.warn('Admin build not found at public/admin/dist. Falling back to source files. Run "npm run build --prefix public/admin" for optimized assets.');
+    app.use('/admin', express.static(adminSourcePath));
+}
+
+// 5c. Serve the REST of the 'public' folder (for login.html, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 
@@ -764,65 +770,71 @@ app.get('/auth.html', (req, res) => {
 
 // --- 7. Admin Page Routes (FOR MPA) ---
 
+const sendAdminPage = (fileName, res) => {
+    const filePath = resolveAdminFile(fileName);
+    if (fs.existsSync(filePath)) {
+        return res.sendFile(filePath);
+    }
+    return res.status(404).send('Admin page not found. Build the admin app or check the path.');
+};
+
 app.get('/admin', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'index.html'));
+    sendAdminPage('index.html', res);
 });
 
 app.get('/admin/index.html', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'index.html'));
+    sendAdminPage('index.html', res);
 });
 
 app.get('/admin/auth.html', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'auth.html'));
+    sendAdminPage('auth.html', res);
 });
 
 app.get('/admin/dashboard', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'dashboard.html'));
+    sendAdminPage('dashboard.html', res);
 });
 
 
 app.get('/admin/analytics', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'analytics.html'));
+    sendAdminPage('analytics.html', res);
 });
 
 app.get('/admin/applications', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'applications.html'));
+    sendAdminPage('applications.html', res);
 });
 
 app.get('/admin/application-detail', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'application-detail.html'));
+    sendAdminPage('application-detail.html', res);
 });
 
 app.get('/admin/create-application-step1', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'create-application-step1.html'));
+    sendAdminPage('create-application-step1.html', res);
 });
 
 app.get('/admin/incoming-payments', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'incoming-payments.html'));
+    sendAdminPage('incoming-payments.html', res);
 });
 
 app.get('/admin/outgoing-payments', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'outgoing-payments.html'));
+    sendAdminPage('outgoing-payments.html', res);
 });
 
 app.get('/admin/users', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'users.html'));
+    sendAdminPage('users.html', res);
 });
 
 app.get('/admin/settings', (req, res) => {
-    res.sendFile(path.join(adminDistPath, 'settings.html'));
+    sendAdminPage('settings.html', res);
 });
 
 
 // --- 8. Start Server ---
 app.listen(PORT, () => {
-    console.log(`🚀 Zwane Finance server running on http://localhost:${PORT}`);
+    const companyNameForLog = cachedSystemSettings?.data?.company_name || DEFAULT_SYSTEM_SETTINGS.company_name;
+    console.log(`🚀 ${companyNameForLog} server running on http://localhost:${PORT}`);
     console.log(`📁 Serving admin files from: ${adminDistPath}`);
     console.log(`📁 Serving public files from: ${path.join(__dirname, 'public')}`);
     
     // Start notification scheduler
     startNotificationScheduler();
 });
-
-// --- FIX 2: Export for Vercel Serverless Function ---
-module.exports = app;

@@ -3,6 +3,119 @@ import { supabase } from './supabaseClient.js';
 
 export { DEFAULT_SYSTEM_SETTINGS };
 
+function resolveFirstPaymentDate(source = {}) {
+  const offerDetails = source.offer_details || {};
+  const candidate = offerDetails.first_payment_date || source.repayment_start_date || source.next_payment_date;
+  if (!candidate) {
+    return null;
+  }
+  const date = new Date(candidate);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function normalizeToIsoMidnight(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const clone = new Date(date);
+  clone.setUTCHours(0, 0, 0, 0);
+  return clone.toISOString();
+}
+
+async function ensureLoanFromApplication(application) {
+  if (!application?.id) return { data: null, error: new Error('Invalid application payload') };
+
+  const applicationId = application.id;
+
+  const { data: existingLoan } = await supabase
+    .from('loans')
+    .select('*')
+    .eq('application_id', applicationId)
+    .maybeSingle();
+
+  const offerDetails = application.offer_details || {};
+  const principal = Number(application.offer_principal ?? application.amount ?? 0) || 0;
+  const termMonths = Number(application.term_months || offerDetails.term_months || 0) || 1;
+  const rateFromOfferDetails = typeof offerDetails.interest_rate === 'number' ? offerDetails.interest_rate : null;
+  const rate = rateFromOfferDetails ?? (Number(application.offer_interest_rate) ? Number(application.offer_interest_rate) / 100 : 0.025);
+
+  const monthlyFromOffer = Number(application.offer_monthly_repayment ?? offerDetails.monthly_payment ?? 0);
+  let monthlyPayment = monthlyFromOffer;
+
+  if (!monthlyPayment) {
+    const factor = Math.pow(1 + rate, termMonths);
+    monthlyPayment = rate === 0 ? principal / termMonths : principal * (rate * factor) / (factor - 1);
+  }
+
+  const totalRepayment = Number(
+    application.offer_total_repayment
+    ?? offerDetails.total_repayment
+    ?? (monthlyPayment && termMonths ? monthlyPayment * termMonths : 0)
+  );
+
+  const firstPaymentDate = resolveFirstPaymentDate(application);
+  const normalizedFirstPayment = normalizeToIsoMidnight(firstPaymentDate);
+  const nextPaymentDate = firstPaymentDate ? new Date(firstPaymentDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  nextPaymentDate.setUTCHours(0, 0, 0, 0);
+
+  const baseLoan = {
+    application_id: applicationId,
+    user_id: application.user_id,
+    principal_amount: principal,
+    interest_rate: rate,
+    term_months: termMonths,
+    monthly_payment: monthlyPayment,
+    status: 'active',
+    start_date: new Date().toISOString(),
+    next_payment_date: nextPaymentDate.toISOString(),
+    outstanding_balance: principal
+  };
+
+  if (normalizedFirstPayment) {
+    baseLoan.first_payment_date = normalizedFirstPayment;
+  }
+  if (!Number.isNaN(totalRepayment) && totalRepayment > 0) {
+    baseLoan.total_repayment = totalRepayment;
+  }
+
+  if (existingLoan?.id) {
+    const updatePayload = {
+      monthly_payment: monthlyPayment,
+      next_payment_date: baseLoan.next_payment_date,
+      interest_rate: rate,
+      term_months: termMonths,
+      principal_amount: principal
+    };
+
+    if (baseLoan.total_repayment) {
+      updatePayload.total_repayment = baseLoan.total_repayment;
+    }
+    if (baseLoan.first_payment_date) {
+      updatePayload.first_payment_date = baseLoan.first_payment_date;
+    }
+
+    const { data, error } = await supabase
+      .from('loans')
+      .update(updatePayload)
+      .eq('id', existingLoan.id)
+      .select()
+      .single();
+
+    return { data, error };
+  }
+
+  const { data, error } = await supabase
+    .from('loans')
+    .insert([baseLoan])
+    .select()
+    .single();
+
+  return { data, error };
+}
+
 // =================================================================
 // == HELPER UTILS (SYSTEM SETTINGS)
 // =================================================================
@@ -47,9 +160,15 @@ const normalizeBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const normalizeCompanyName = (value) => {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return name || DEFAULT_SYSTEM_SETTINGS.company_name;
+};
+
 const hydrateSystemSettings = (settings = {}) => ({
   ...DEFAULT_SYSTEM_SETTINGS,
   ...settings,
+  company_name: normalizeCompanyName(settings?.company_name),
   auth_overlay_color: normalizeHexColor(settings?.auth_overlay_color, DEFAULT_SYSTEM_SETTINGS.auth_overlay_color),
   auth_overlay_enabled: normalizeBoolean(settings?.auth_overlay_enabled, DEFAULT_SYSTEM_SETTINGS.auth_overlay_enabled),
   auth_background_flip: normalizeBoolean(settings?.auth_background_flip, DEFAULT_SYSTEM_SETTINGS.auth_background_flip),
@@ -223,7 +342,22 @@ export async function fetchApplicationDetail(applicationId) {
 }
 
 export async function updateApplicationStatus(applicationId, newStatus) {
-  return supabase.from('loan_applications').update({ status: newStatus }).eq('id', applicationId).select();
+  const { data: updatedApp, error } = await supabase
+    .from('loan_applications')
+    .update({ status: newStatus })
+    .eq('id', applicationId)
+    .select()
+    .single();
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  if (updatedApp && ['OFFERED', 'READY_TO_DISBURSE', 'DISBURSED', 'ACTIVE'].includes(newStatus)) {
+    await ensureLoanFromApplication(updatedApp);
+  }
+
+  return { data: updatedApp, error: null };
 }
 
 export async function updateApplicationNotes(applicationId, notes) {
@@ -490,6 +624,7 @@ export async function updateSystemSettings(settings) {
     const carouselSlides = normalizeCarouselSlides(settings.carousel_slides);
     const payload = {
       id: 'global',
+      company_name: normalizeCompanyName(settings.company_name),
       primary_color: settings.primary_color,
       secondary_color: settings.secondary_color,
       tertiary_color: settings.tertiary_color,
@@ -556,11 +691,14 @@ export async function syncApplicationToLoans(applicationId) {
     const monthlyInterest = principal * monthlyRate;
     const principalPart = principal / termMonths;
     const monthlyPayment = principalPart + monthlyInterest + monthlyServiceFee;
-    const nextPaymentDate = offerDetails.first_payment_date
-      ? new Date(offerDetails.first_payment_date)
+    const resolvedFirstPayment = resolveFirstPaymentDate(app);
+    const nextPaymentDate = resolvedFirstPayment
+      ? new Date(resolvedFirstPayment)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    nextPaymentDate.setUTCHours(0, 0, 0, 0);
+    const firstPaymentIso = normalizeToIsoMidnight(resolvedFirstPayment);
 
-    const loanData = {
+    const loanPayload = {
       application_id: applicationId,
       user_id: app.user_id,
       principal_amount: principal,
@@ -569,14 +707,34 @@ export async function syncApplicationToLoans(applicationId) {
       monthly_payment: monthlyPayment.toFixed(2),
       status: 'active',
       start_date: new Date().toISOString(),
-      next_payment_date: nextPaymentDate.toISOString()
+      next_payment_date: nextPaymentDate.toISOString(),
+      outstanding_balance: principal
     };
+    if (firstPaymentIso) {
+      loanPayload.first_payment_date = firstPaymentIso;
+    }
 
-    const { data: newLoan, error: loanError } = await supabase
+    const initialInsert = await supabase
       .from('loans')
-      .insert([loanData])
+      .insert([loanPayload])
       .select()
       .single();
+
+    let newLoan = initialInsert.data;
+    let loanError = initialInsert.error;
+
+    if (loanError && firstPaymentIso && /first_payment_date/i.test(loanError.message || '')) {
+      console.warn('⚠️ loans.first_payment_date column missing. Retrying insert without it.');
+      const fallbackLoan = { ...loanPayload };
+      delete fallbackLoan.first_payment_date;
+      const retryInsert = await supabase
+        .from('loans')
+        .insert([fallbackLoan])
+        .select()
+        .single();
+      newLoan = retryInsert.data;
+      loanError = retryInsert.error;
+    }
     if (loanError) throw loanError;
 
     if (app.status !== 'DISBURSED') {

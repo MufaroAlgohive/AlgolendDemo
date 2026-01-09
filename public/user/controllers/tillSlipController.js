@@ -1,5 +1,5 @@
 const path = require('path');
-const { supabase, createAuthedClient } = require('../../../config/supabaseServer');
+const { supabase } = require('../../../config/supabaseServer');
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -127,7 +127,12 @@ const uploadTillSlip = async (req, res) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
-      uploadClient = createAuthedClient(token);
+      const { createClient } = require('@supabase/supabase-js');
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+      uploadClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
       console.log('✅ Using authenticated Supabase client for upload');
     }
 

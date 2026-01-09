@@ -9,8 +9,9 @@
   overflow-y: auto !important;
   padding: 2rem !important;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-primary) #1a1a1a;
-  background: #0f0f0f !important;
+  scrollbar-color: var(--color-primary) #e5e7eb;
+  background: #ffffff !important;
+  color: #1f2937;
 }
 
 /* Webkit scrollbar for modal */
@@ -19,7 +20,7 @@
 }
 
 .loan-modal-content::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: #f1f5f9;
   border-radius: 5px;
 }
 
@@ -41,12 +42,12 @@
 
 /* Loan Selection Card */
 .loan-selection-card {
-  background: #1a1a1a;
-  border-radius: 0;
-  box-shadow: none;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
   padding: 2.5rem;
   animation: slideUp 0.5s ease-out;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #e5e7eb;
 }
 
 @keyframes slideUp {
@@ -64,12 +65,12 @@
   text-align: center;
   margin-bottom: 3rem;
   padding-bottom: 2rem;
-  border-bottom: 2px solid #2a2a2a;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .card-header h2 {
   font-size: 2rem;
-  color: #ffffff;
+  color: #111827;
   margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
@@ -83,7 +84,7 @@
 }
 
 .card-header p {
-  color: #999;
+  color: #6b7280;
   font-size: 1rem;
 }
 
@@ -96,16 +97,17 @@
 }
 
 .config-group {
-  background: #0f0f0f;
+  background: #f9fafb;
   padding: 2rem;
-  border-radius: 8px;
-  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
   transition: all 0.2s;
 }
 
 .config-group:hover {
-  border-color: #3a3a3a;
-  box-shadow: 0 2px 8px rgb(var(--color-primary-rgb) / 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  background: #ffffff;
 }
 
 .config-label {
@@ -114,7 +116,7 @@
   gap: 0.5rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #ffffff;
+  color: #1f2937;
   margin-bottom: 1.5rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -131,7 +133,7 @@
   text-align: center;
   font-size: 3rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #111827;
   margin-bottom: 1.5rem;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -146,8 +148,8 @@
 .loan-slider {
   width: 100%;
   height: 8px;
-  border-radius: 4px;
-  background: #2a2a2a;
+  border-radius: 999px;
+  background: #e5e7eb;
   outline: none;
   transition: all 0.2s;
   cursor: pointer;
@@ -157,7 +159,7 @@
 }
 
 .loan-slider:hover {
-  background: #3a3a3a;
+  background: #d1d5db;
 }
 
 .loan-slider::-webkit-slider-thumb {
@@ -167,10 +169,10 @@
   height: 24px;
   border-radius: 50%;
   background: var(--color-primary);
-  border: 3px solid #1a1a1a;
+  border: 3px solid #ffffff;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgb(var(--color-primary-rgb) / 0.4);
+  box-shadow: 0 4px 12px rgb(var(--color-primary-rgb) / 0.25);
 }
 
 .loan-slider::-webkit-slider-thumb:hover {
@@ -183,10 +185,10 @@
   height: 24px;
   border-radius: 50%;
   background: var(--color-primary);
-  border: 3px solid #1a1a1a;
+  border: 3px solid #ffffff;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgb(var(--color-primary-rgb) / 0.4);
+  box-shadow: 0 4px 12px rgb(var(--color-primary-rgb) / 0.25);
 }
 
 .loan-slider::-moz-range-thumb:hover {
@@ -198,7 +200,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.9rem;
-  color: #999;
+  color: #6b7280;
   font-weight: 500;
 }
 
@@ -211,25 +213,27 @@
 
 .period-btn {
   padding: 1rem;
-  border: 2px solid #e0e0e0;
-  background: #fff;
-  border-radius: 4px;
+  border: 2px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 600;
-  color: #666;
+  color: #374151;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .period-btn:hover {
-  border-color: #1a1a1a;
-  color: #1a1a1a;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
 .period-btn.active {
-  background: #1a1a1a;
-  color: #fff;
-  border-color: #1a1a1a;
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+  box-shadow: 0 6px 16px rgb(var(--color-primary-rgb) / 0.35);
 }
 
 /* Date Input */
@@ -242,20 +246,19 @@
   width: 100%;
   padding: 1rem;
   padding-right: 3rem;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 1rem;
-  background: #101010;
-  color: #c0c0c0;
+  background: #ffffff;
+  color: #111827;
   transition: all 0.2s;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color-scheme: dark;
 }
 
 .date-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgb(var(--color-primary-rgb) / 0.1);
+  box-shadow: 0 0 0 3px rgb(var(--color-primary-rgb) / 0.2);
 }
 
 .date-input-icon {
@@ -291,7 +294,7 @@
 .helper-text {
   display: block;
   margin-top: 0.5rem;
-  color: #999;
+  color: #6b7280;
   font-size: 0.85rem;
 }
 
@@ -314,24 +317,24 @@
 
 /* Loan Summary */
 .loan-summary {
-  background: #1a1a1a;
+  background: #f9fafb;
   padding: 2rem;
-  border-radius: 4px;
+  border-radius: 12px;
   margin-bottom: 3rem;
-  color: #fff;
-  border: none;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
 }
 
 .loan-summary h3 {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  color: #111827;
 }
 
 .summary-grid {
@@ -341,27 +344,28 @@
 }
 
 .summary-item {
-  background: rgba(255, 255, 255, 0.05);
+  background: #ffffff;
   padding: 1.25rem;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
   transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
 }
 
 .summary-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-primary);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
 }
 
 .summary-item.highlight {
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid #fff;
+  background: #fef3c7;
+  border: 2px solid var(--color-primary);
 }
 
 .summary-label {
   display: block;
   font-size: 0.9rem;
-  color: #fff;
-  opacity: 0.85;
+  color: #4b5563;
   margin-bottom: 0.5rem;
 }
 
@@ -369,21 +373,22 @@
   display: block;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #fff;
+  color: #111827;
 }
 
 /* Signature Section */
 .signature-section {
-  background: #0f0f0f;
+  background: #ffffff;
   padding: 2rem;
-  border-radius: 8px;
+  border-radius: 12px;
   margin-bottom: 2rem;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
 .signature-section h3 {
   font-size: 1.2rem;
-  color: #ffffff;
+  color: #111827;
   margin-bottom: 1rem;
   display: flex;
   align-items: center;
@@ -391,7 +396,6 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 0.95rem;
 }
 
 .signature-section h3 i {
@@ -399,7 +403,7 @@
 }
 
 .signature-disclaimer {
-  color: #999;
+  color: #6b7280;
   line-height: 1.6;
   margin-bottom: 1.5rem;
   font-size: 0.9rem;
@@ -413,9 +417,9 @@
 .signature-canvas {
   width: 100%;
   height: 200px;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  background: #1a1a1a;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #ffffff;
   cursor: crosshair;
   transition: border-color 0.2s;
 }
@@ -429,10 +433,10 @@
   top: 10px;
   right: 10px;
   padding: 0.5rem 1rem;
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  color: #ffffff;
-  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #1f2937;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
@@ -440,12 +444,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
 }
 
 .clear-signature-btn:hover {
-  background: #3a3a3a;
+  background: var(--color-primary);
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgb(var(--color-primary-rgb) / 0.3);
 }
 
 /* Terms Checkbox */
@@ -458,7 +464,7 @@
   align-items: center;
   cursor: pointer;
   font-size: 1rem;
-  color: #e2e8f0;
+  color: #374151;
   gap: 0.75rem;
 }
 
@@ -494,7 +500,7 @@
 .btn-primary {
   flex: 1;
   padding: 1.25rem 2rem;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -507,25 +513,29 @@
 }
 
 .btn-secondary {
-  background: #2a2a2a;
-  color: #e2e8f0;
-  border: 1px solid #3a3a3a;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .btn-secondary:hover {
-  background: #3a3a3a;
-  border-color: #4a4a4a;
+  background: #f9fafb;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
 }
 
 .btn-primary {
   background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
   color: #fff;
   border: none;
+  box-shadow: 0 6px 20px rgb(var(--color-primary-rgb) / 0.35);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: linear-gradient(135deg, var(--color-primary-hover, var(--color-primary)), var(--color-secondary));
-  box-shadow: 0 4px 12px rgb(var(--color-primary-rgb) / 0.4);
+  box-shadow: 0 8px 24px rgb(var(--color-primary-rgb) / 0.45);
 }
 
 .btn-primary:disabled {
@@ -568,7 +578,7 @@
   }
 }
 
-/* Additional mobile fixes to prevent horizontal overflow and make the dark gray area fill the modal */
+/* Additional mobile fixes to prevent horizontal overflow and ensure the content fills the modal */
 @media (max-width: 768px) {
   /* Ensure the top-level modal area fills width and doesn't allow horizontal scroll */
   .loan-modal-content, .loan-selection-card {
@@ -657,7 +667,7 @@
     border-radius: 0 !important;
     padding: 1rem !important;
     overflow-y: auto !important;
-    background: #0f0f0f !important;
+    background: #ffffff !important;
   }
 
   .loan-selection-card {

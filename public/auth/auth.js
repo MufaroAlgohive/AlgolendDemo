@@ -1,5 +1,5 @@
 import { supabase } from '../Services/supabaseClient.js';
-import { ensureThemeLoaded, getCachedTheme, DEFAULT_SYSTEM_SETTINGS } from '../shared/theme-runtime.js';
+import { ensureThemeLoaded, getCachedTheme, DEFAULT_SYSTEM_SETTINGS, getCompanyName } from '../shared/theme-runtime.js';
 
 const authContainer = document.getElementById('auth-container');
 
@@ -8,9 +8,9 @@ let viewState = 'login'; // Options: 'login', 'signup', 'forgot'
 let formMessage = { type: '', text: '' }; 
 let brandingTheme = null;
 
-const DEFAULT_BRAND_LOGO = 'https://www.zwanefin.co.za/assets/img/zwanefin-logo.png';
+const DEFAULT_BRAND_LOGO = 'https://placehold.co/240x80?text=Your+Logo';
 const DEFAULT_AUTH_WALLPAPER = 'https://static.wixstatic.com/media/f82622_a05fcfc8600d48818feb2feeef4796fa~mv2.png';
-const DEFAULT_AUTH_OVERLAY_COLOR = DEFAULT_SYSTEM_SETTINGS.auth_overlay_color || '#EA580C';
+const DEFAULT_AUTH_OVERLAY_COLOR = DEFAULT_SYSTEM_SETTINGS.auth_overlay_color || '#212121ff';
 const DEFAULT_AUTH_OVERLAY_ENABLED = DEFAULT_SYSTEM_SETTINGS.auth_overlay_enabled !== false;
 const DEFAULT_CAROUSEL_SLIDES = (DEFAULT_SYSTEM_SETTINGS.carousel_slides || []).map((slide) => ({
     title: slide?.title || '',
@@ -26,6 +26,13 @@ const escapeAttr = (value = '') => {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 };
+
+const escapeHtml = (value = '') => `${value}`
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const getActiveCompanyName = () => getCompanyName(brandingTheme || getCachedTheme() || DEFAULT_SYSTEM_SETTINGS);
 
 const sanitizeCarouselSlides = (slides) => {
     const fallback = DEFAULT_CAROUSEL_SLIDES;
@@ -179,6 +186,7 @@ function render() {
     const brandLogoAttr = escapeAttr(brandLogo);
     const wallpaperAttr = escapeAttr(wallpaper);
     const overlayColorAttr = escapeAttr(overlayColor);
+    const companyName = escapeHtml(getActiveCompanyName());
 
     let mainHeading, subHeading, buttonText;
     
@@ -246,7 +254,6 @@ function render() {
             <div class="pointer-events-auto">
                 <img src="${brandLogoAttr}" alt="Company logo" class="h-16 w-auto object-contain">
             </div>
-
             <div class="mb-12 max-w-lg pointer-events-auto">
                 <h1 id="carousel-title" class="text-white text-5xl font-bold mb-6 leading-tight transition-opacity duration-300 whitespace-pre-line"></h1>
                 <p id="carousel-text" class="text-white text-lg font-light leading-relaxed mb-8 transition-opacity duration-300"></p>
@@ -279,8 +286,7 @@ function render() {
                         <div>
                             <label for="full-name" class="block text-xs font-bold text-gray-200 lg:text-gray-700 uppercase mb-1">Full Name</label>
                             <input id="full-name" name="fullName" type="text" required 
-                                class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all
-                                       lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
+                                class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
                                 placeholder="eg. John Francisco">
                         </div>
                         ` : ''}
@@ -288,8 +294,7 @@ function render() {
                         <div>
                             <label for="email-address" class="block text-xs font-bold text-gray-200 lg:text-gray-700 uppercase mb-1">Email Address</label>
                             <input id="email-address" name="email" type="email" autocomplete="email" required 
-                                class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all
-                                       lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
+                                class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
                                 placeholder="info@example.com">
                         </div>
 
@@ -298,8 +303,7 @@ function render() {
                             <label for="password" class="block text-xs font-bold text-gray-200 lg:text-gray-700 uppercase mb-1">Password</label>
                             <div class="relative">
                                 <input id="password" name="password" type="password" autocomplete="current-password" required 
-                                    class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all
-                                           lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
+                                    class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
                                     placeholder="********">
                             </div>
                             ${viewState === 'signup' ? `<p class="mt-1 text-xs text-gray-300 lg:text-gray-500">Must be at least 6 characters.</p>` : ''}
@@ -313,12 +317,11 @@ function render() {
                         ` : ''}
 
                         <button type="submit" 
-                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded shadow-sm text-sm font-bold text-white 
-                                   bg-orange-600 hover:bg-orange-500 lg:bg-gray-900 lg:hover:bg-gray-800 
-                                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 lg:focus:ring-gray-900 transition-all">
-                            <span id="auth-button-content">
-                                ${buttonText}
-                            </span>
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded shadow-sm text-sm font-bold text-white transition-all focus:outline-none focus:ring-2 focus:ring-offset-2"
+                            style="background-color: var(--color-primary, #E7762E);"
+                            onmouseenter="this.style.backgroundColor = 'var(--color-primary-hover, #cf5f20)'"
+                            onmouseleave="this.style.backgroundColor = 'var(--color-primary, #E7762E)'">
+                            <span id="auth-button-content">${buttonText}</span>
                         </button>
                     </form>
 
@@ -340,9 +343,9 @@ function render() {
 
                 <div class="mt-8 pt-4 text-center border-t border-white/10 lg:border-gray-100 lg:mt-auto">
                     <p class="text-[10px] text-gray-300 lg:text-sm lg:text-gray-500 leading-tight opacity-70 hover:opacity-100 transition-opacity">
-                        Zwane Financial Services is an authorised financial services provider (FSP 53423) and registered credit provider (NCRCP13510).
+                        ${companyName} is an authorised financial services provider (FSP 53423) and registered credit provider (NCRCP13510).
                         <br class="mb-1">
-                        Copyright © 2025 by Zwane Financial Services. All Right Reserved.
+                        Copyright © 2025 by ${companyName}. All Right Reserved.
                     </p>
                 </div>
 
@@ -397,7 +400,7 @@ async function handleAuth(e) {
     const submitButton = e.target.querySelector('button[type="submit"]');
     
     submitButton.disabled = true;
-    buttonContent.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2" style="color: var(--color-secondary);"></i> Processing...`;
+    buttonContent.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2" style="color: var(--color-secondary, #000000);"></i> Processing...`;
     formMessage = { type: '', text: '' }; 
 
     try {

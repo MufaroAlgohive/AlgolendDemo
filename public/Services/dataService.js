@@ -1,6 +1,28 @@
 import { supabase } from './supabaseClient.js';
 import { notifyApplicationStatusChange } from './notificationService.js';
 
+function resolveFirstPaymentDate(source = {}) {
+    const offerDetails = source.offer_details || {};
+    const candidate = offerDetails.first_payment_date || source.repayment_start_date || source.next_payment_date;
+    if (!candidate) {
+        return null;
+    }
+    const date = new Date(candidate);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+    return date;
+}
+
+function normalizeToIsoMidnight(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return null;
+    }
+    const clone = new Date(date);
+    clone.setUTCHours(0, 0, 0, 0);
+    return clone.toISOString();
+}
+
 // --- Dashboard Metrics ---
 export async function fetchDashboardData() {
     try {
@@ -117,14 +139,16 @@ export async function updateApplicationStatus(applicationId, newStatus) {
       return { data: updatedApp, error: null };
     }
     
-    // Extract loan details from offer_details if available
-    const offerDetails = updatedApp.offer_details || {};
-    const interestRate = offerDetails.interest_rate || 0.025; // Default 2.5% monthly
-    
-    // Calculate next payment date (first payment date from offer or 1 month from now)
-    const nextPaymentDate = offerDetails.first_payment_date 
-      ? new Date(offerDetails.first_payment_date)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+        // Extract loan details from offer_details if available
+        const offerDetails = updatedApp.offer_details || {};
+        const interestRate = offerDetails.interest_rate || 0.025; // Default 2.5% monthly
+
+        const resolvedFirstPayment = resolveFirstPaymentDate(updatedApp);
+        const nextPaymentDate = resolvedFirstPayment
+            ? new Date(resolvedFirstPayment)
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+        nextPaymentDate.setUTCHours(0, 0, 0, 0);
+        const firstPaymentIso = normalizeToIsoMidnight(resolvedFirstPayment);
     
     // Calculate monthly payment
     const principal = parseFloat(updatedApp.amount);
@@ -139,31 +163,54 @@ export async function updateApplicationStatus(applicationId, newStatus) {
     }
     
     // Create loan record
-    const loanData = {
-      application_id: applicationId,
-      user_id: updatedApp.user_id,
-      principal_amount: principal,
-      interest_rate: rate,
-      term_months: termMonths,
-      monthly_payment: monthlyPayment,
-      status: 'active',
-      start_date: new Date().toISOString(),
-      next_payment_date: nextPaymentDate.toISOString()
-    };
-    
-    const { data: newLoan, error: loanError } = await supabase
-      .from('loans')
-      .insert([loanData])
-      .select()
-      .single();
-    
-    if (loanError) {
-      console.error('❌ Error creating loan record:', loanError);
-      // Don't fail the status update if loan creation fails
-      // Admin can manually create loan if needed
-    } else {
-      console.log('✅ Loan created successfully:', newLoan);
-    }
+        const loanBase = {
+            application_id: applicationId,
+            user_id: updatedApp.user_id,
+            principal_amount: principal,
+            interest_rate: rate,
+            term_months: termMonths,
+            monthly_payment: monthlyPayment,
+            status: 'active',
+            start_date: new Date().toISOString(),
+            next_payment_date: nextPaymentDate.toISOString(),
+            outstanding_balance: principal
+        };
+        if (firstPaymentIso) {
+            loanBase.first_payment_date = firstPaymentIso;
+        }
+
+        let newLoan = null;
+        let loanError = null;
+
+        const initialInsert = await supabase
+            .from('loans')
+            .insert([loanBase])
+            .select()
+            .single();
+
+        if (initialInsert.error && firstPaymentIso && /first_payment_date/i.test(initialInsert.error.message || '')) {
+            console.warn('⚠️ loans.first_payment_date column missing. Retrying insert without it.');
+            const fallbackLoan = { ...loanBase };
+            delete fallbackLoan.first_payment_date;
+            const retryInsert = await supabase
+                .from('loans')
+                .insert([fallbackLoan])
+                .select()
+                .single();
+            newLoan = retryInsert.data;
+            loanError = retryInsert.error;
+        } else {
+            newLoan = initialInsert.data;
+            loanError = initialInsert.error;
+        }
+
+        if (loanError) {
+            console.error('❌ Error creating loan record:', loanError);
+            // Don't fail the status update if loan creation fails
+            // Admin can manually create loan if needed
+        } else {
+            console.log('✅ Loan created successfully:', newLoan);
+        }
   }
   
   return { data: updatedApp, error: null };
@@ -221,9 +268,12 @@ export async function createLoanFromApplication(applicationId) {
     // Extract loan details
     const offerDetails = app.offer_details || {};
     const interestRate = offerDetails.interest_rate || 0.025;
-    const nextPaymentDate = offerDetails.first_payment_date 
-        ? new Date(offerDetails.first_payment_date)
+    const resolvedFirstPayment = resolveFirstPaymentDate(app);
+    const nextPaymentDate = resolvedFirstPayment
+        ? new Date(resolvedFirstPayment)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    nextPaymentDate.setUTCHours(0, 0, 0, 0);
+    const firstPaymentIso = normalizeToIsoMidnight(resolvedFirstPayment);
     
     // Calculate monthly payment
     const principal = parseFloat(app.amount);
@@ -238,7 +288,7 @@ export async function createLoanFromApplication(applicationId) {
     }
 
     // Create loan record
-    const loanData = {
+    const baseLoanData = {
         application_id: applicationId,
         user_id: app.user_id,
         principal_amount: principal,
@@ -247,14 +297,34 @@ export async function createLoanFromApplication(applicationId) {
         monthly_payment: monthlyPayment,
         status: 'active',
         start_date: new Date().toISOString(),
-        next_payment_date: nextPaymentDate.toISOString()
+        next_payment_date: nextPaymentDate.toISOString(),
+        outstanding_balance: principal
     };
-    
-    const { data: newLoan, error: loanError } = await supabase
+    if (firstPaymentIso) {
+        baseLoanData.first_payment_date = firstPaymentIso;
+    }
+
+    const initialInsert = await supabase
         .from('loans')
-        .insert([loanData])
+        .insert([baseLoanData])
         .select()
         .single();
+
+    let newLoan = initialInsert.data;
+    let loanError = initialInsert.error;
+
+    if (loanError && firstPaymentIso && /first_payment_date/i.test(loanError.message || '')) {
+        console.warn('⚠️ loans.first_payment_date column missing. Retrying insert without it.');
+        const fallbackLoan = { ...baseLoanData };
+        delete fallbackLoan.first_payment_date;
+        const retryInsert = await supabase
+            .from('loans')
+            .insert([fallbackLoan])
+            .select()
+            .single();
+        newLoan = retryInsert.data;
+        loanError = retryInsert.error;
+    }
     
     if (loanError) {
         console.error('❌ Error creating loan:', loanError);

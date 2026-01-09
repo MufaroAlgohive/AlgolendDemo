@@ -50,8 +50,8 @@ let inBranchState = {
   },
   documents: {
     idcard: 'pending',
-    tillslip: 'pending',
-    bankstatement: 'pending'
+    till_slip: 'pending',
+    bank_statement: 'pending'
   },
   creditCheck: {
       applicationId: null,
@@ -60,6 +60,8 @@ let inBranchState = {
   }
 };
 
+
+
 // --- Credit Check Globals ---
 const CREDIT_MODAL_ID = 'admin-credit-check-modal';
 let creditModalInitialized = false;
@@ -67,6 +69,8 @@ let latestCreditZipData = null;
 
 // --- Toast Notification Helper ---
 function showToast(message, type = 'success') {
+
+    
     let container = document.getElementById('toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -478,9 +482,6 @@ function renderPageContent() {
             <p class="text-sm text-gray-500 mt-1">Manage reviews and create in-branch applications.</p>
           </div>
           <div class="flex items-center gap-2 w-full sm:w-auto">
-            <button id="sync-offered-btn" class="w-full sm:w-auto border border-gray-300 text-gray-700 px-4 py-2 rounded-md font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
-                <i class="fa-solid fa-arrows-rotate text-sm"></i> Sync Offered
-            </button>
             <button id="create-app-btn" class="w-full sm:w-auto bg-brand-accent text-white px-4 py-2 rounded-md font-semibold hover:bg-brand-accent-hover transition flex items-center justify-center gap-2 whitespace-nowrap shadow-sm">
                 <i class="fa-solid fa-desktop text-sm"></i> In-Branch Application
             </button>
@@ -667,395 +668,816 @@ function updateWizardButtons() {
 }
 
 // ==========================================
-//   STEP 1: USER SELECTION
+//   STEP 1: USER SELECTION (GREEN THEME + RESUME LOGIC)
 // ==========================================
 
 async function renderUserSelection(container) {
     const allowedRoles = ['admin', 'super_admin', 'base_admin'];
-    const canCreateWalkIn = allowedRoles.includes(userRole);
+    const canCreateWalkIn = allowedRoles.includes(userRole); //
     
     container.innerHTML = `
         <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg border border-gray-200 shadow-sm mt-4">
             <div class="flex border-b border-gray-200 mb-6">
-                <button id="tab-search" class="flex-1 py-2 text-sm font-medium text-orange-600 border-b-2 border-orange-600"><i class="fa-solid fa-magnifying-glass mr-2"></i>Search Existing</button>
-                ${canCreateWalkIn ? `<button id="tab-create" class="flex-1 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"><i class="fa-solid fa-user-plus mr-2"></i>New Walk-in Client</button>` : ''}
+                <button id="tab-search" class="flex-1 py-2 text-sm font-medium text-green-600 border-b-2 border-green-600">
+                    <i class="fa-solid fa-magnifying-glass mr-2"></i>Search Existing
+                </button>
+                ${canCreateWalkIn ? `
+                <button id="tab-create" class="flex-1 py-2 text-sm font-medium text-gray-500 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-user-plus mr-2"></i>New Walk-in Client
+                </button>` : ''}
             </div>
             
             <div id="view-search">
                 <h3 class="text-xl font-bold text-gray-800 mb-2">Find Client</h3>
-                <p class="text-sm text-gray-500 mb-6">Search database by name, email, or ID number.</p>
+                <p class="text-sm text-gray-500 mb-6">Search by name, email, or ID number.</p>
                 <div class="relative mb-6">
-                    <input type="text" id="user-search" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition-all shadow-sm" placeholder="Start typing name or ID...">
+                    <input type="text" id="user-search" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition-all shadow-sm" placeholder="Start typing name or ID...">
                     <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    <div id="search-spinner" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-orange-500"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+                    <div id="search-spinner" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    </div>
                 </div>
                 <div id="user-results" class="hidden absolute z-10 w-full max-w-[36rem] bg-white border border-gray-200 rounded-lg shadow-xl mt-[-20px] max-h-60 overflow-y-auto"></div>
             </div>
             
             ${canCreateWalkIn ? `
             <div id="view-create" class="hidden animate-fade-in">
-                <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-6"><div class="flex"><div class="flex-shrink-0"><i class="fa-solid fa-store text-orange-600"></i></div><div class="ml-3"><p class="text-sm text-orange-700">You are registering a <strong>Walk-in Client</strong>. No email/password required.</p></div></div></div>
+                <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0"><i class="fa-solid fa-store text-green-600"></i></div>
+                        <div class="ml-3">
+                            <p class="text-sm text-green-700">You are registering a <strong>Walk-in Client</strong>. No email required.</p>
+                        </div>
+                    </div>
+                </div>
                 <div class="space-y-5">
-                    <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Full Name <span class="text-red-500">*</span></label><input type="text" id="new-fullname" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="e.g. John Doe"></div>
-                    <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">ID Number <span class="text-red-500">*</span></label><input type="text" id="new-idnumber" maxlength="13" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="13-digit SA ID"></div>
-                    <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Phone</label><input type="tel" id="new-phone" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="082..."></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Email (Optional)</label><input type="email" id="new-email" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Leave empty if none"></div></div>
-                    <button id="btn-create-client" class="w-full py-3 bg-gray-900 text-white font-bold rounded-lg hover:bg-black transition-all shadow-md mt-2 flex justify-center items-center gap-2"><i class="fa-solid fa-user-plus"></i> Create & Select Client</button>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Full Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="new-fullname" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="e.g. John Doe">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">ID Number <span class="text-red-500">*</span></label>
+                        <input type="text" id="new-idnumber" maxlength="13" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="13-digit SA ID">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Phone</label>
+                            <input type="tel" id="new-phone" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="082...">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Email (Optional)</label>
+                            <input type="email" id="new-email" class="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Leave empty if none">
+                        </div>
+                    </div>
+                    <button id="btn-create-client" class="w-full py-3 bg-gray-900 text-white font-bold rounded-lg hover:bg-black transition-all shadow-md mt-2 flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-user-plus"></i> Create & Select Client
+                    </button>
                 </div>
             </div>` : ''}
             
-            <div id="selected-user-card" class="${inBranchState.targetUser ? '' : 'hidden'} mt-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between transition-all">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-full bg-green-200 flex items-center justify-center text-green-700 font-bold text-xl shadow-sm">${inBranchState.targetUser?.full_name?.charAt(0) || 'U'}</div>
-                    <div><h4 class="font-bold text-gray-900">${inBranchState.targetUser?.full_name || ''}</h4><p class="text-xs text-gray-600 font-mono">ID: ${inBranchState.targetUser?.identity_number || 'N/A'}</p></div>
+            <div id="selected-user-card" class="${inBranchState.targetUser ? '' : 'hidden'} mt-6 space-y-4 animate-fade-in">
+                <div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-green-200 flex items-center justify-center text-green-700 font-bold text-xl shadow-sm">
+                            ${inBranchState.targetUser?.full_name?.charAt(0) || 'U'}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-900">${inBranchState.targetUser?.full_name || ''}</h4>
+                            <p class="text-xs text-gray-600 font-mono">ID: ${inBranchState.targetUser?.identity_number || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <button id="clear-user-btn" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-times text-xl"></i></button>
                 </div>
-                <button id="clear-user-btn" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-times text-xl"></i></button>
+
+                <div id="action-new-loan" class="bg-white border-2 border-green-600 border-dashed rounded-2xl p-6 shadow-md hover:bg-green-50 cursor-pointer transition-all group">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg"><i class="fa-solid fa-plus"></i></div>
+                            <div>
+                                <h5 class="font-black text-gray-900 uppercase">Start New Loan Application</h5>
+                                <div id="outstanding-balance-warning">
+                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Fresh credit check & financials</p>
+                                </div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-green-600"></i>
+                    </div>
+                </div>
+
+                <div id="existing-loans-container" class="space-y-2">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2">Resume / Update Existing</p>
+                    <div id="user-loan-history-list" class="space-y-2">
+                        <div class="text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                            <i class="fa-solid fa-spinner fa-spin text-gray-400"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
-    
-    const tabSearch = document.getElementById('tab-search'); const tabCreate = document.getElementById('tab-create');
-    const viewSearch = document.getElementById('view-search'); const viewCreate = document.getElementById('view-create');
-    const input = document.getElementById('user-search'); const results = document.getElementById('user-results');
-    
+
+    // --- DOM Elements ---
+    const tabSearch = document.getElementById('tab-search'); 
+    const tabCreate = document.getElementById('tab-create');
+    const viewSearch = document.getElementById('view-search'); 
+    const viewCreate = document.getElementById('view-create');
+    const input = document.getElementById('user-search'); 
+    const results = document.getElementById('user-results');
+    const spinner = document.getElementById('search-spinner');
+
+    // --- 1. Tab Switching Listeners (Green Theme) ---
     if (canCreateWalkIn && tabCreate) {
-        tabSearch.addEventListener('click', () => { viewSearch.classList.remove('hidden'); viewCreate.classList.add('hidden'); tabSearch.classList.add('text-orange-600', 'border-b-2', 'border-orange-600'); tabSearch.classList.remove('text-gray-500'); tabCreate.classList.remove('text-orange-600', 'border-b-2', 'border-orange-600'); tabCreate.classList.add('text-gray-500'); });
-        tabCreate.addEventListener('click', () => { viewSearch.classList.add('hidden'); viewCreate.classList.remove('hidden'); tabCreate.classList.add('text-orange-600', 'border-b-2', 'border-orange-600'); tabCreate.classList.remove('text-gray-500'); tabSearch.classList.remove('text-orange-600', 'border-b-2', 'border-orange-600'); tabSearch.classList.add('text-gray-500'); });
-        
-        document.getElementById('btn-create-client')?.addEventListener('click', async () => {
-            const fullName = document.getElementById('new-fullname').value.trim(); const idNumber = document.getElementById('new-idnumber').value.trim();
-            const phone = document.getElementById('new-phone').value.trim(); const email = document.getElementById('new-email').value.trim();
-            if(!fullName || !idNumber) { showToast("Full Name and ID Number required.", 'warning'); return; }
-            
-            const { createWalkInClient } = await import('../services/dataService.js');
-            const { data, error } = await createWalkInClient({ fullName, idNumber, phone, email: email || null });
-            
-            if(error) showToast(error.message, 'error');
-            else { 
-                inBranchState.targetUser = data; 
-                renderUserSelection(container); 
-                updateWizardButtons(); 
-            }
-        });
+        tabSearch.onclick = () => { 
+            viewSearch.classList.remove('hidden'); 
+            viewCreate.classList.add('hidden'); 
+            tabSearch.className = "flex-1 py-2 text-sm font-medium text-green-600 border-b-2 border-green-600";
+            tabCreate.className = "flex-1 py-2 text-sm font-medium text-gray-500 hover:text-green-700 transition-colors";
+        };
+
+        tabCreate.onclick = () => { 
+            viewSearch.classList.add('hidden'); 
+            viewCreate.classList.remove('hidden'); 
+            tabCreate.className = "flex-1 py-2 text-sm font-medium text-green-600 border-b-2 border-green-600";
+            tabSearch.className = "flex-1 py-2 text-sm font-medium text-gray-500 hover:text-green-700 transition-colors";
+        };
     }
-    
+
+    // --- 2. Existing Client Search (Debounced) ---
     if(input) {
-        input.addEventListener('input', (e) => {
-            const val = e.target.value.trim(); if(val.length < 2) { results.classList.add('hidden'); return; }
-            setTimeout(async () => {
-                const { data: matches } = await supabase.from('profiles').select('*').or(`full_name.ilike.%${val}%,email.ilike.%${val}%,identity_number.ilike.%${val}%`).limit(5);
-                if(matches && matches.length > 0) {
-                    results.innerHTML = matches.map(u => `<div class="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-0 user-option" data-id="${u.id}"><div class="font-bold text-gray-800">${u.full_name}</div><div class="text-xs text-gray-500 font-mono">ID: ${u.identity_number || 'N/A'}</div></div>`).join('');
+        let timer;
+        input.oninput = (e) => {
+            clearTimeout(timer);
+            const val = e.target.value.trim(); 
+            if(val.length < 2) { results.classList.add('hidden'); return; }
+            spinner.classList.remove('hidden');
+            timer = setTimeout(async () => {
+                const { data: matches } = await supabase.from('profiles')
+                    .select('*')
+                    .or(`full_name.ilike.%${val}%,identity_number.ilike.%${val}%`)
+                    .limit(5);
+                
+                spinner.classList.add('hidden');
+                if(matches?.length > 0) {
+                    results.innerHTML = matches.map(u => `
+                        <div class="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-0 user-option" data-id="${u.id}">
+                            <div class="font-bold text-gray-800">${u.full_name}</div>
+                            <div class="text-xs text-gray-500 font-mono">ID: ${u.identity_number || 'N/A'}</div>
+                        </div>`).join('');
                     results.classList.remove('hidden');
-                    document.querySelectorAll('.user-option').forEach(el => el.addEventListener('click', () => { inBranchState.targetUser = matches.find(u => u.id === el.dataset.id); renderUserSelection(container); updateWizardButtons(); }));
+                    document.querySelectorAll('.user-option').forEach(el => el.onclick = () => { 
+                        inBranchState.targetUser = matches.find(u => u.id === el.dataset.id); 
+                        renderUserSelection(container); 
+                        updateWizardButtons(); 
+                    });
                 } else { 
                     results.innerHTML = `<div class="p-4 text-sm text-gray-500">No clients found.</div>`; 
                     results.classList.remove('hidden'); 
                 }
             }, 400);
-        });
+        };
     }
-    document.getElementById('clear-user-btn')?.addEventListener('click', () => { inBranchState.targetUser = null; renderUserSelection(container); updateWizardButtons(); });
+
+    // --- 3. Walk-in Creation Handler ---
+    document.getElementById('btn-create-client')?.addEventListener('click', async (e) => {
+        const fullName = document.getElementById('new-fullname').value.trim(); 
+        const idNumber = document.getElementById('new-idnumber').value.trim();
+        const phone = document.getElementById('new-phone').value.trim(); 
+        const email = document.getElementById('new-email').value.trim();
+
+        if(!fullName || !idNumber) return showToast("Name and ID Number are required.", 'warning');
+
+        e.target.disabled = true;
+        e.target.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating...';
+
+        try {
+            const { data, error } = await createWalkInClient({ fullName, idNumber, phone, email: email || null });
+            if(error) throw error;
+            inBranchState.targetUser = data; // Automatically select
+            renderUserSelection(container);
+            updateWizardButtons(); 
+        } catch (err) {
+            showToast(err.message, 'error');
+            e.target.disabled = false;
+            e.target.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create & Select Client';
+        }
+    });
+
+    // --- 4. Selection Management (Active Verification & Resume) ---
+    if (inBranchState.targetUser) {
+        const listContainer = document.getElementById('user-loan-history-list');
+        const warningContainer = document.getElementById('outstanding-balance-warning');
+        const actionNewBtn = document.getElementById('action-new-loan');
+
+        supabase.from('loan_applications')
+            .select('*')
+            .eq('user_id', inBranchState.targetUser.id)
+            .order('created_at', { ascending: false })
+            .then(({ data: apps, error }) => {
+                if (error) return listContainer.innerHTML = `<p class="text-xs text-red-500 p-4">Error loading history</p>`;
+
+                // Verify for Active Loans
+                const activeLoan = apps?.find(a => !['REPAID', 'DECLINED', 'ERROR', 'DISBURSED'].includes(a.status));
+
+                if (activeLoan) {
+                    warningContainer.innerHTML = `
+                        <p class="text-[10px] text-red-600 font-bold uppercase flex items-center gap-1">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Active Application: ${activeLoan.status}
+                        </p>`;
+                    actionNewBtn.classList.add('opacity-50', 'bg-gray-50', 'cursor-not-allowed');
+                    actionNewBtn.onclick = () => showToast(`Cannot start new. Application active in status: ${activeLoan.status}`, "warning");
+                } else {
+                    warningContainer.innerHTML = `<p class="text-[10px] text-green-600 font-bold uppercase">Ready for new application</p>`;
+                    actionNewBtn.onclick = () => handleNextStep(); // Step 2 (Bureau)
+                }
+
+                // Render History with Resume Logic
+                if (!apps || apps.length === 0) {
+                    listContainer.innerHTML = `<p class="text-xs text-gray-400 p-4 text-center italic">No previous applications found.</p>`;
+                } else {
+                    listContainer.innerHTML = apps.map(app => {
+                        const canResume = !['REPAID', 'DECLINED', 'ERROR', 'DISBURSED'].includes(app.status);
+                        return `
+                            <div class="bg-white border border-gray-200 rounded-lg p-3 flex justify-between items-center text-sm shadow-sm">
+                                <div>
+                                    <span class="font-bold text-gray-700">${formatCurrency(app.amount)}</span>
+                                    <span class="text-[10px] ml-2 text-gray-400 font-mono">${formatDate(app.created_at)}</span>
+                                    <div class="mt-1"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${getBadgeColor(app.status)}">${app.status}</span></div>
+                                </div>
+                                ${canResume ? `<button class="resume-app-btn px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-md hover:bg-green-700 transition" data-id="${app.id}">Resume</button>` : ''}
+                            </div>`;
+                    }).join('');
+
+                    document.querySelectorAll('.resume-app-btn').forEach(btn => {
+                        btn.onclick = (e) => {
+                            const appId = e.target.dataset.id;
+                            const appData = apps.find(a => a.id == appId);
+                            // Load existing data into global state
+                            inBranchState.creditCheck.applicationId = appId;
+                            inBranchState.loanConfig = { ...inBranchState.loanConfig, amount: appData.amount, period: appData.term_months, reason: appData.purpose };
+                            showToast(`Resuming Application #${appId.slice(0,8)}...`);
+                            handleNextStep(); 
+                        };
+                    });
+                }
+            });
+    }
+
+    document.getElementById('clear-user-btn')?.addEventListener('click', () => { 
+        inBranchState.targetUser = null; 
+        renderUserSelection(container); 
+        updateWizardButtons(); 
+    });
 }
 
 // ==========================================
-//   STEP 2: CREDIT CHECK
+//   STEP 2: BUREAU (MERGED DESIGN & LOGIC)
 // ==========================================
 
 async function renderCreditCheck(container) {
     if(!inBranchState.targetUser) return;
     
+    // Fetch the latest completed check (Logic from snippet 2)
     const { data: checks } = await supabase
         .from('credit_checks')
         .select('*')
         .eq('user_id', inBranchState.targetUser.id)
-        .order('created_at', { ascending: false })
+        .eq('status', 'completed')
+        .order('checked_at', { ascending: false })
         .limit(1);
 
-    const latestCheck = checks && checks.length > 0 ? checks[0] : null;
-    let statusHtml = '';
+    const latestCheck = checks?.[0];
+    
+    // Calculate validity based on age (90 days) and status (Logic from snippet 1)
+    const checkAgeDays = latestCheck ? (Date.now() - new Date(latestCheck.checked_at)) / (1000 * 3600 * 24) : 999;
+    const isValid = latestCheck && checkAgeDays <= 90;
+
+    let contentHtml = '';
     let canProceed = false;
 
-    if (latestCheck && latestCheck.status === 'completed') {
-        inBranchState.creditScore = latestCheck.credit_score;
-        inBranchState.creditCheck = { applicationId: latestCheck.application_id, status: 'completed', score: latestCheck.credit_score };
+    if (isValid) {
+        // Prepare data for state (Logic from snippet 2)
+        const score = latestCheck.credit_score;
+        inBranchState.creditScore = score;
+        inBranchState.creditCheck = { applicationId: latestCheck.application_id, status: 'completed', score };
         canProceed = true;
-        statusHtml = `
-            <div class="text-center">
-                <div class="w-20 h-20 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-4xl mx-auto mb-4"><i class="fa-solid fa-shield-check"></i></div>
-                <h3 class="text-xl font-bold text-gray-900">Credit Check Passed</h3>
-                <p class="text-gray-600 mt-2">Score: <strong>${latestCheck.credit_score}</strong></p>
-                <p class="text-xs text-gray-400 mt-1">Date: ${formatDate(latestCheck.checked_at)}</p>
+        
+        // Styling logic (Styling from snippet 1)
+        let color = score < 600 ? '#EF4444' : score < 700 ? '#F59E0B' : '#10B981';
+        let rating = score < 600 ? 'Poor' : score < 700 ? 'Average' : 'Excellent';
+        const expiryDate = new Date(new Date(latestCheck.checked_at).getTime() + 90*24*60*60*1000).toLocaleDateString();
+
+        contentHtml = `
+            <div class="text-center p-6">
+                <div class="relative w-48 h-48 mx-auto mb-6 flex items-center justify-center">
+                    <svg class="w-full h-full transform -rotate-90">
+                        <circle cx="96" cy="96" r="80" stroke="#f3f4f6" stroke-width="12" fill="none"/>
+                        <circle cx="96" cy="96" r="80" stroke="${color}" stroke-width="12" fill="none" 
+                            stroke-dasharray="502" 
+                            stroke-dashoffset="${502 - (502 * (score/800))}"
+                            style="transition: stroke-dashoffset 1s ease-in-out;"/>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-4xl font-extrabold text-gray-900">${score}</span>
+                        <span class="text-xs font-bold uppercase tracking-widest" style="color: ${color}">${rating}</span>
+                    </div>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Bureau Report Verified</h3>
+                <p class="text-sm text-gray-500 mt-1">Valid until ${expiryDate}</p>
             </div>`;
     } else {
-        inBranchState.creditCheck = { applicationId: latestCheck?.application_id || null, status: 'pending', score: null };
-        statusHtml = `
-            <div class="text-center">
-                <div class="w-20 h-20 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center text-4xl mx-auto mb-4"><i class="fa-solid fa-user-clock"></i></div>
-                <h3 class="text-xl font-bold text-gray-900">Credit Check Required</h3>
-                <p class="text-gray-600 mt-2">Launch the Experian capture form to run a live bureau report.</p>
-                <button id="run-check-btn" class="mt-6 bg-brand-accent text-white px-6 py-2 rounded-md hover:bg-brand-accent-hover transition">Launch Credit Check Module</button>
+        // Fallback for missing or expired report (Logic from snippet 1/2)
+        inBranchState.creditCheck = { applicationId: null, status: 'pending', score: null };
+        
+        contentHtml = `
+            <div class="text-center py-10">
+                <div class="w-20 h-20 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-3xl mx-auto mb-4">
+                    <i class="fa-solid fa-user-clock"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900">New Credit Check Required</h3>
+                <p class="text-gray-600 mt-2">No valid bureau report found from the last 3 months.</p>
+                <button id="run-check-btn" class="mt-8 bg-brand-accent text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:bg-brand-accent-hover transition">
+                    Launch Experian Module
+                </button>
             </div>`;
     }
-    container.innerHTML = `<div class="max-w-xl mx-auto bg-white p-8 rounded-lg border border-gray-200 shadow-sm mt-4">${statusHtml}</div>`;
+
+    // Render Container
+    container.innerHTML = `<div class="max-w-xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-xl mt-4">${contentHtml}</div>`;
     
+    // Event Listeners
     const btn = document.getElementById('run-check-btn');
-    if (btn) btn.addEventListener('click', () => { window.openCreditCheckModal(); });
+    if (btn) btn.onclick = () => window.openCreditCheckModal();
     
-    document.getElementById('wizard-next-btn').disabled = !canProceed;
+    // Update Wizard Navigation
+    const nextBtn = document.getElementById('wizard-next-btn');
+    if (nextBtn) nextBtn.disabled = !canProceed;
 }
 
 // ==========================================
-//   STEP 3: FINANCIALS
+//   STEP 3: FINANCIAL AFFORDABILITY
 // ==========================================
 
 async function renderFinancialsForm(container) {
-    const { data: profile } = await supabase.from('financial_profiles').select('*').eq('user_id', inBranchState.targetUser.id).maybeSingle();
+    if (!inBranchState.targetUser) return;
+
+    // 1. Fetch existing financial profile
+    const { data: profile } = await supabase
+        .from('financial_profiles')
+        .select('*')
+        .eq('user_id', inBranchState.targetUser.id)
+        .maybeSingle();
+
     const parsed = profile?.parsed_data || { income: {}, expenses: {} };
     
     container.innerHTML = `
-        <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg border border-gray-200 shadow-sm mt-4">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Financial Assessment</h3>
-            <form id="financials-form" class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Salary</label><input type="number" id="fin_salary" value="${parsed.income.salary || ''}" class="w-full border-gray-300 rounded-md"></div>
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Other Income</label><input type="number" id="fin_other" value="${parsed.income.other_monthly_earnings || ''}" class="w-full border-gray-300 rounded-md"></div>
-                </div>
-                <hr>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Housing/Rent</label><input type="number" id="exp_housing" value="${parsed.expenses.housing_rent || ''}" class="w-full border-gray-300 rounded-md"></div>
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Transport</label><input type="number" id="exp_transport" value="${parsed.expenses.petrol || ''}" class="w-full border-gray-300 rounded-md"></div>
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Food</label><input type="number" id="exp_food" value="${parsed.expenses.groceries || ''}" class="w-full border-gray-300 rounded-md"></div>
-                    <div><label class="text-xs font-bold text-gray-500 uppercase">Other</label><input type="number" id="exp_other" value="${parsed.expenses.other || ''}" class="w-full border-gray-300 rounded-md"></div>
-                </div>
-                <button type="submit" class="w-full bg-gray-900 text-white py-2 rounded-md font-bold mt-4">Save Financials & Continue</button>
-            </form>
-        </div>`;
-        
-    document.getElementById('financials-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const income = (parseFloat(document.getElementById('fin_salary').value)||0) + (parseFloat(document.getElementById('fin_other').value)||0);
-        const expenses = (parseFloat(document.getElementById('exp_housing').value)||0) + (parseFloat(document.getElementById('exp_transport').value)||0) + (parseFloat(document.getElementById('exp_food').value)||0) + (parseFloat(document.getElementById('exp_other').value)||0);
-        
-        if(income <= 0) { showToast("Please enter valid income.", 'warning'); return; }
-        
-        const payload = { 
-            user_id: inBranchState.targetUser.id, 
-            monthly_income: income, 
-            monthly_expenses: expenses, 
-            parsed_data: { 
-                income: { salary: document.getElementById('fin_salary').value, other_monthly_earnings: document.getElementById('fin_other').value }, 
-                expenses: { housing_rent: document.getElementById('exp_housing').value, petrol: document.getElementById('exp_transport').value, groceries: document.getElementById('exp_food').value, other: document.getElementById('exp_other').value } 
-            } 
-        };
-        
-        const { error } = await supabase.from('financial_profiles').upsert(payload, { onConflict: 'user_id' });
-        
-        if(error) showToast(error.message, 'error'); 
-        else { 
-            showToast('Financials Saved', 'success'); 
-            handleNextStep(); 
-        }
-    });
-}
-
-// ==========================================
-//   STEP 4: DECLARATIONS (UPDATED FOR ALL COLUMNS)
-// ==========================================
-
-async function renderDeclarationsForm(container) {
-    if(!inBranchState.targetUser) return;
-    
-    // Fetch existing declaration data
-    const { data: existing } = await supabase.from('declarations').select('*').eq('user_id', inBranchState.targetUser.id).maybeSingle();
-    const meta = existing?.metadata || {};
-    
-    container.innerHTML = `
-        <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg border border-gray-200 shadow-sm mt-4">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Declarations & Demographics</h3>
-            <div class="space-y-4">
-                
-                <div class="grid grid-cols-2 gap-4">
-                   <div>
-                      <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Marital Status</label>
-                      <select id="decl_marital" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
-                         <option value="single">Single</option>
-                         <option value="married">Married</option>
-                         <option value="divorced">Divorced</option>
-                         <option value="widowed">Widowed</option>
-                      </select>
-                   </div>
-                   <div>
-                      <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Home Ownership</label>
-                      <select id="decl_home" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
-                         <option value="rent">Rent</option>
-                         <option value="own">Own</option>
-                         <option value="family">Family</option>
-                      </select>
-                   </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                   <div>
-                      <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Highest Qualification</label>
-                      <select id="decl_qual" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
-                         <option value="none">None / Primary School</option>
-                         <option value="matric">Matric / Grade 12</option>
-                         <option value="diploma">Diploma</option>
-                         <option value="degree">Bachelor's Degree</option>
-                         <option value="postgrad">Postgraduate</option>
-                      </select>
-                   </div>
-                   <div class="flex items-center mt-6">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="decl_disadvantaged" class="w-5 h-5 text-brand-accent border-gray-300 rounded">
-                            <span class="text-sm text-gray-700">Historically Disadvantaged?</span>
-                        </label>
-                   </div>
-                </div>
-
-                <div class="bg-gray-50 p-4 rounded-md border border-gray-100">
-                    <label class="flex items-center gap-2 cursor-pointer mb-3">
-                        <input type="checkbox" id="decl_referral_provided" class="w-5 h-5 text-brand-accent border-gray-300 rounded">
-                        <span class="text-sm font-bold text-gray-700">Was a referral provided?</span>
-                    </label>
-                    <div id="referral-fields" class="grid grid-cols-2 gap-4 hidden">
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-xl mt-4 animate-fade-in">
+            <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <i class="fa-solid fa-scale-balanced text-brand-accent"></i> 
+                Financial Affordability Assessment
+            </h3>
+            
+            <form id="financials-form" class="space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-wallet"></i> Monthly Income
+                        </h4>
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Referral Name</label>
-                            <input type="text" id="decl_ref_name" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Basic Salary (Net)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">R</span>
+                                <input type="number" id="fin_salary" value="${parsed.income.salary || ''}" 
+                                    class="w-full pl-8 border-gray-300 rounded-lg focus:ring-brand-accent" placeholder="0.00">
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Referral Phone</label>
-                            <input type="tel" id="decl_ref_phone" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm">
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Other Earnings</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">R</span>
+                                <input type="number" id="fin_other" value="${parsed.income.other_monthly_earnings || ''}" 
+                                    class="w-full pl-8 border-gray-300 rounded-lg focus:ring-brand-accent" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-receipt"></i> Monthly Expenses
+                        </h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 mb-1">Housing/Rent</label>
+                                <input type="number" id="exp_housing" value="${parsed.expenses.housing_rent || ''}" 
+                                    class="w-full border-gray-300 rounded-lg text-sm" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 mb-1">School Fees</label>
+                                <input type="number" id="exp_school" value="${parsed.expenses.school || ''}" 
+                                    class="w-full border-gray-300 rounded-lg text-sm" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 mb-1">Transport</label>
+                                <input type="number" id="exp_transport" value="${parsed.expenses.petrol || ''}" 
+                                    class="w-full border-gray-300 rounded-lg text-sm" placeholder="0">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 mb-1">Groceries</label>
+                                <input type="number" id="exp_food" value="${parsed.expenses.groceries || ''}" 
+                                    class="w-full border-gray-300 rounded-lg text-sm" placeholder="0">
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <hr class="border-gray-100">
+                <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-tighter">Maximum Monthly Affordability</span>
+                        <div class="flex items-baseline gap-2">
+                            <h2 id="disp-income" class="text-4xl font-black text-brand-accent">R 0.00</h2>
+                            <span class="text-xs text-gray-400 font-medium">(Surplus Income)</span>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full md:w-auto bg-gray-900 text-white px-10 py-4 rounded-xl font-extrabold hover:bg-black transition shadow-lg flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Save & Analyze Profile
+                    </button>
+                </div>
+            </form>
+        </div>`;
+    
+    // 2. Real-time calculation logic
+    const calculateAffordability = () => {
+        const salary = parseFloat(document.getElementById('fin_salary').value) || 0;
+        const other = parseFloat(document.getElementById('fin_other').value) || 0;
+        const totalIncome = salary + other;
 
-                <label class="flex items-center gap-3 p-3 border rounded-md bg-gray-50 cursor-pointer hover:bg-gray-100 transition">
-                   <input type="checkbox" id="decl_terms" class="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-brand-accent">
-                   <span class="text-sm text-gray-700">Client accepts Standard Terms & Conditions</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 border rounded-md bg-gray-50 cursor-pointer hover:bg-gray-100 transition">
-                   <input type="checkbox" id="decl_truth" class="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-brand-accent">
-                   <span class="text-sm text-gray-700">Client declares all information is true and correct</span>
-                </label>
-                
-                <button id="save-declarations" class="w-full bg-gray-900 text-white py-2 rounded-md font-bold mt-4 hover:bg-black transition">Confirm Declarations</button>
+        const housing = parseFloat(document.getElementById('exp_housing').value) || 0;
+        const school = parseFloat(document.getElementById('exp_school').value) || 0;
+        const transport = parseFloat(document.getElementById('exp_transport').value) || 0;
+        const food = parseFloat(document.getElementById('exp_food').value) || 0;
+        const totalExpenses = housing + school + transport + food;
+
+        const surplus = Math.max(0, totalIncome - totalExpenses);
+        document.getElementById('disp-income').textContent = formatCurrency(surplus);
+        
+        return { totalIncome, totalExpenses, surplus };
+    };
+    
+    // Attach real-time listeners
+    document.querySelectorAll('#financials-form input').forEach(input => {
+        input.addEventListener('input', calculateAffordability);
+    });
+    
+    // Initial run to show values if data existed
+    calculateAffordability();
+
+    // 3. Save logic with affordability_ratio calculation
+    document.getElementById('financials-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const { totalIncome, totalExpenses, surplus } = calculateAffordability();
+
+        if (totalIncome <= 0) {
+            return showToast("Please enter a valid salary.", 'warning');
+        }
+
+        const payload = { 
+            user_id: inBranchState.targetUser.id, 
+            monthly_income: totalIncome, 
+            monthly_expenses: totalExpenses, 
+            affordability_ratio: surplus, // PERSISTED FOR STEP 5 DYNAMIC CALCS
+            parsed_data: { 
+                income: { 
+                    salary: document.getElementById('fin_salary').value, 
+                    other_monthly_earnings: document.getElementById('fin_other').value 
+                }, 
+                expenses: { 
+                    housing_rent: document.getElementById('exp_housing').value, 
+                    school: document.getElementById('exp_school').value, 
+                    petrol: document.getElementById('exp_transport').value, 
+                    groceries: document.getElementById('exp_food').value 
+                } 
+            } 
+        };
+
+        const { error } = await supabase
+            .from('financial_profiles')
+            .upsert(payload, { onConflict: 'user_id' });
+
+        if (error) {
+            showToast(error.message, 'error');
+        } else {
+            // Update global state so Step 5 has the limit ready
+            inBranchState.affordabilityLimit = surplus; 
+            showToast('Financial Profile Updated', 'success'); 
+            handleNextStep(); 
+        }
+    };
+}
+// ==========================================
+//   STEP 4: COMPLIANCE & DECLARATIONS
+// ==========================================
+
+async function renderDeclarationsForm(container) {
+    if (!inBranchState.targetUser) return;
+
+    // 1. Fetch existing declaration data
+    const { data: existing } = await supabase
+        .from('declarations')
+        .select('*')
+        .eq('user_id', inBranchState.targetUser.id)
+        .maybeSingle();
+
+    container.innerHTML = `
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-2xl border border-gray-200 shadow-xl mt-4 animate-fade-in">
+            <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <i class="fa-solid fa-file-shield text-brand-accent"></i> 
+                Compliance & Statutory Declarations
+            </h3>
+
+            <div class="space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Marital Status</label>
+                        <select id="decl_marital" class="w-full border-gray-300 rounded-lg focus:ring-brand-accent">
+                            <option value="single">Single</option>
+                            <option value="married">Married</option>
+                            <option value="divorced">Divorced</option>
+                            <option value="widowed">Widowed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Residential Status</label>
+                        <select id="decl_home" class="w-full border-gray-300 rounded-lg focus:ring-brand-accent">
+                            <option value="rent">Rent</option>
+                            <option value="own">Own Home</option>
+                            <option value="family">Living with Family</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Highest Qualification</label>
+                        <select id="decl_qual" class="w-full border-gray-300 rounded-lg focus:ring-brand-accent">
+                            <option value="none">None / Primary</option>
+                            <option value="matric">Matric / Grade 12</option>
+                            <option value="diploma">Diploma</option>
+                            <option value="degree">Bachelor's Degree</option>
+                            <option value="postgrad">Postgraduate</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-3 pt-6">
+                        <input type="checkbox" id="decl_disadvantaged" class="w-5 h-5 text-brand-accent border-gray-300 rounded focus:ring-brand-accent">
+                        <label for="decl_disadvantaged" class="text-sm font-semibold text-gray-700 cursor-pointer">Historically Disadvantaged?</label>
+                    </div>
+                </div>
+
+                <div class="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                    <label class="flex items-center gap-3 cursor-pointer mb-3">
+                        <input type="checkbox" id="decl_referral_provided" class="w-5 h-5 text-brand-accent border-gray-300 rounded">
+                        <span class="text-sm font-bold text-gray-700 uppercase tracking-tighter">Was a referral provided for this client?</span>
+                    </label>
+                    <div id="referral-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden mt-4 animate-fade-in">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Referral Name</label>
+                            <input type="text" id="decl_ref_name" class="w-full border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-accent" placeholder="Full Name">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Referral Phone</label>
+                            <input type="tel" id="decl_ref_phone" class="w-full border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-brand-accent" placeholder="081...">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 bg-orange-50 border border-orange-100 rounded-xl space-y-4">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="decl_terms" class="mt-1 w-5 h-5 text-orange-600 border-orange-200 rounded focus:ring-orange-500">
+                        <span class="text-sm text-gray-700 leading-tight">
+                            Client has read and accepts the <strong>Standard Conditions of the Credit Agreement</strong> and the <strong>Pre-Agreement Statement</strong>.
+                        </span>
+                    </label>
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="decl_truth" class="mt-1 w-5 h-5 text-orange-600 border-orange-200 rounded focus:ring-orange-500">
+                        <span class="text-sm text-gray-700 leading-tight">
+                            Client declares that all information provided is true, correct, and that they are not currently under debt review or insolvent.
+                        </span>
+                    </label>
+                </div>
+
+                <button id="save-declarations" class="w-full bg-gray-900 text-white py-4 rounded-xl font-black hover:bg-black shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-check-double"></i> Verify Compliance & Continue
+                </button>
             </div>
-        </div>
-    `;
+        </div>`;
 
-    // --- LOGIC: Toggle Referral Fields ---
+    // 2. Logic: Handle Referral Toggle
     const toggleReferral = () => {
         const checked = document.getElementById('decl_referral_provided').checked;
         const fields = document.getElementById('referral-fields');
-        if (checked) fields.classList.remove('hidden'); else fields.classList.add('hidden');
+        if (checked) {
+            fields.classList.remove('hidden');
+        } else {
+            fields.classList.add('hidden');
+        }
     };
     document.getElementById('decl_referral_provided').addEventListener('change', toggleReferral);
 
-    // --- LOGIC: Prefill Existing Data ---
+    // 3. Logic: Pre-fill existing data
     if (existing) {
-        if(existing.marital_status) document.getElementById('decl_marital').value = existing.marital_status;
-        if(existing.home_ownership) document.getElementById('decl_home').value = existing.home_ownership;
-        if(existing.highest_qualification) document.getElementById('decl_qual').value = existing.highest_qualification;
-        if(existing.historically_disadvantaged) document.getElementById('decl_disadvantaged').checked = true;
+        document.getElementById('decl_marital').value = existing.marital_status || 'single';
+        document.getElementById('decl_home').value = existing.home_ownership || 'rent';
+        document.getElementById('decl_qual').value = existing.highest_qualification || 'matric';
+        document.getElementById('decl_disadvantaged').checked = !!existing.historically_disadvantaged;
         
-        if(existing.referral_provided) {
+        if (existing.referral_provided) {
             document.getElementById('decl_referral_provided').checked = true;
             toggleReferral();
-            if(existing.referral_name) document.getElementById('decl_ref_name').value = existing.referral_name;
-            if(existing.referral_phone) document.getElementById('decl_ref_phone').value = existing.referral_phone;
+            document.getElementById('decl_ref_name').value = existing.referral_name || '';
+            document.getElementById('decl_ref_phone').value = existing.referral_phone || '';
         }
     }
 
-    // --- LOGIC: Save ---
-    document.getElementById('save-declarations').addEventListener('click', async () => {
-        if(!document.getElementById('decl_terms').checked || !document.getElementById('decl_truth').checked) { 
-            showToast("All declarations must be accepted.", 'warning'); 
-            return; 
+    // 4. Logic: Save to Database
+    document.getElementById('save-declarations').onclick = async () => {
+        const termsChecked = document.getElementById('decl_terms').checked;
+        const truthChecked = document.getElementById('decl_truth').checked;
+
+        if (!termsChecked || !truthChecked) {
+            return showToast("Statutory declarations must be confirmed.", 'warning');
         }
 
-        const referralProvided = document.getElementById('decl_referral_provided').checked;
-
+        const refChecked = document.getElementById('decl_referral_provided').checked;
         const payload = {
             user_id: inBranchState.targetUser.id,
             marital_status: document.getElementById('decl_marital').value,
             home_ownership: document.getElementById('decl_home').value,
             highest_qualification: document.getElementById('decl_qual').value,
             historically_disadvantaged: document.getElementById('decl_disadvantaged').checked,
-            referral_provided: referralProvided,
-            referral_name: referralProvided ? document.getElementById('decl_ref_name').value : null,
-            referral_phone: referralProvided ? document.getElementById('decl_ref_phone').value : null,
+            referral_provided: refChecked,
+            referral_name: refChecked ? document.getElementById('decl_ref_name').value : null,
+            referral_phone: refChecked ? document.getElementById('decl_ref_phone').value : null,
             accepted_std_conditions: true,
             metadata: {
-               marital_status: document.getElementById('decl_marital').value,
-               home_ownership: document.getElementById('decl_home').value
+                marital_status: document.getElementById('decl_marital').value,
+                home_ownership: document.getElementById('decl_home').value
             }
         };
 
-        // Upsert to DB
-        const { error } = await supabase.from('declarations').upsert(payload, { onConflict: 'user_id' });
-        
-        if(error) {
-            console.error(error);
-            showToast('Error saving declarations: ' + error.message, 'error');
+        const { error } = await supabase
+            .from('declarations')
+            .upsert(payload, { onConflict: 'user_id' });
+
+        if (error) {
+            showToast(error.message, 'error');
         } else {
-            showToast('Declarations Saved!', 'success');
+            showToast('Declarations Verified', 'success');
             handleNextStep();
         }
-    });
+    };
+}
+// ==========================================
+//   LOAN CONFIGURATION HELPERS
+// ==========================================
+
+function getSouthAfricanHolidays(year) {
+    return [
+        `${year}-01-01`, `${year}-03-21`, `${year}-04-18`, `${year}-04-21`, 
+        `${year}-04-27`, `${year}-04-28`, `${year}-05-01`, `${year}-06-16`, 
+        `${year}-08-09`, `${year}-09-24`, `${year}-12-16`, `${year}-12-25`, `${year}-12-26`
+    ];
+}
+
+function validateRepaymentDate(dateString) {
+    if (!dateString) return { valid: true };
+    const selectedDate = new Date(dateString);
+    const day = selectedDate.getUTCDay();
+    const year = selectedDate.getUTCFullYear();
+    const formattedDate = selectedDate.toISOString().split('T')[0];
+    const holidays = getSouthAfricanHolidays(year);
+
+    if (day === 0 || day === 6) {
+        return { valid: false, reason: "Repayments cannot be scheduled on weekends." };
+    }
+    if (holidays.includes(formattedDate)) {
+        return { valid: false, reason: "The selected date is a South African Public Holiday." };
+    }
+    return { valid: true };
+}
+
+function calculateLoanDetails(amount, period, startDate, historyCount) {
+    const MONTHLY_FEE = 60;           
+    const INITIATION_FEE_RATE = 0.15; // Fixed 15% per month
+    const DAYS_PER_MONTH = 30;
+    
+    // Tiered Interest: 20% for first 3 loans, 18% thereafter
+    let totalRate = (historyCount < 3) ? 0.20 : 0.18;
+    let interestPortion = totalRate - INITIATION_FEE_RATE; // 5% or 3%
+
+    let totalMonthlyFees = 0;
+    if (startDate) {
+        const start = new Date();
+        const paymentDate = new Date(startDate);
+        const daysUntilPayment = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
+        const proratedDays = Math.min(daysUntilPayment, DAYS_PER_MONTH);
+        
+        const firstMonthFee = (MONTHLY_FEE / DAYS_PER_MONTH) * proratedDays;
+        const remainingMonthsFees = period > 1 ? MONTHLY_FEE * (period - 1) : 0;
+        totalMonthlyFees = firstMonthFee + remainingMonthsFees;
+    } else {
+        totalMonthlyFees = MONTHLY_FEE * period;
+    }
+
+    const totalInterest = amount * interestPortion * (period / 12);
+    const totalInitiationFees = (amount * INITIATION_FEE_RATE) * period; 
+    
+    const totalRepayment = amount + totalInterest + totalMonthlyFees + totalInitiationFees;
+    const monthlyPayment = totalRepayment / period;
+
+    return { 
+        totalInterest, totalRepayment, monthlyPayment, 
+        totalMonthlyFees, totalInitiationFees, totalRate, interestPortion, initiationRate: INITIATION_FEE_RATE 
+    };
 }
 
 // ==========================================
-//   STEP 5: LOAN CONFIG
+//   STEP 5: RENDER LOAN CONFIGURATION
 // ==========================================
 
 async function renderLoanConfiguration(container) {
-    if(inBranchState.targetUser && inBranchState.loanHistoryCount === 0) {
-         const { data, error } = await supabase.from('loans').select('id').eq('user_id', inBranchState.targetUser.id).eq('status', 'repaid');
-         if(!error) inBranchState.loanHistoryCount = data?.length || 0;
+    // 1. Fetch History and Affordability Data if not in state
+    if (inBranchState.targetUser && (inBranchState.loanHistoryCount === undefined || inBranchState.loanHistoryCount === 0)) {
+         const { data: loanData } = await supabase.from('loan_applications').select('id')
+            .eq('user_id', inBranchState.targetUser.id).eq('status', '');
+         inBranchState.loanHistoryCount = loanData?.length || 0;
+
+         const { data: profile } = await supabase.from('financial_profiles')
+            .select('affordability_ratio')
+            .eq('user_id', inBranchState.targetUser.id).single();
+         inBranchState.affordabilityLimit = profile?.affordability_ratio || 0;
     }
     
-    // Loan Cap Logic
-    if (inBranchState.loanHistoryCount < 3) { 
-        inBranchState.loanConfig.maxAllowedPeriod = 1; 
-        inBranchState.loanConfig.interestRate = 0.20; 
-    } else { 
-        inBranchState.loanConfig.maxAllowedPeriod = 12; 
-        inBranchState.loanConfig.interestRate = 0.18; 
-    }
-    
-    if (inBranchState.loanConfig.period > inBranchState.loanConfig.maxAllowedPeriod) {
-        inBranchState.loanConfig.period = 1;
-    }
+    const history = inBranchState.loanHistoryCount || 0;
+    const limit = inBranchState.affordabilityLimit || 0;
+
+    // Rule: New clients (< 3 loans) locked to 1 month
+    if (history < 3) inBranchState.loanConfig.maxAllowedPeriod = 1; 
+    else inBranchState.loanConfig.maxAllowedPeriod = 24; 
 
     const { amount, period, reason, startDate } = inBranchState.loanConfig;
-    const calc = calculateLoanDetails(amount, period, startDate, inBranchState.loanHistoryCount);
-    
+    const calc = calculateLoanDetails(amount, period, startDate, history);
+
+    // DYNAMIC MAX LOAN CALCULATION (Amortized formula)
+    const monthlyRate = (calc.totalRate) / 12;
+    let maxLoan = 10000; // Default fallback
+    if (limit > 0) {
+        if (monthlyRate > 0) {
+            maxLoan = limit * ((1 - Math.pow(1 + monthlyRate, -period)) / monthlyRate);
+        } else {
+            maxLoan = limit * period;
+        }
+    }
+    maxLoan = Math.floor(maxLoan / 100) * 100; // Round to nearest R100
+
+    const exceedsAffordability = limit > 0 && calc.monthlyPayment > limit;
+    const dateValidation = validateRepaymentDate(document.getElementById('loan-start-date')?.value || startDate);
+
     container.innerHTML = `
         <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
             <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-                <h3 class="text-lg font-bold text-gray-800 mb-4">Configure Loan</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Configure Loan</h3>
+                    <div class="text-right">
+                        <span class="block text-[10px] uppercase text-gray-400 font-bold tracking-tight">Max for ${period} Month${period > 1 ? 's' : ''}</span>
+                        <span class="text-sm font-black text-brand-accent">R ${maxLoan.toLocaleString()}</span>
+                    </div>
+                </div>
+                
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Amount (ZAR)</label>
-                    <input type="number" id="loan-amount" value="${amount}" min="100" max="10000" step="100" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
+                    <input type="number" id="loan-amount" value="${amount}" min="100" class="w-full border-gray-300 rounded-md focus:ring-brand-accent ${exceedsAffordability ? 'border-red-500 ring-1 ring-red-500' : ''}">
+                    ${exceedsAffordability ? `
+                    <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-700 flex items-start gap-2">
+                        <i class="fa-solid fa-triangle-exclamation mt-0.5"></i> 
+                        <span><strong>Limit Exceeded:</strong> Max monthly payment is ${formatCurrency(limit)}. This loan requires ${formatCurrency(calc.monthlyPayment)}.</span>
+                    </div>` : ''}
                 </div>
+
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Period (Months)</label>
                     <select id="loan-period" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
                         <option value="1" ${period == 1 ? 'selected' : ''}>1 Month</option>
-                        ${inBranchState.loanConfig.maxAllowedPeriod > 1 ? `<option value="2" ${period == 2 ? 'selected' : ''}>2 Months</option><option value="3" ${period == 3 ? 'selected' : ''}>3 Months</option><option value="6" ${period == 6 ? 'selected' : ''}>6 Months</option>` : ''}
+                        ${inBranchState.loanConfig.maxAllowedPeriod > 1 ? `
+                            <option value="3" ${period == 3 ? 'selected' : ''}>3 Months</option>
+                            <option value="6" ${period == 6 ? 'selected' : ''}>6 Months</option>
+                            <option value="12" ${period == 12 ? 'selected' : ''}>12 Months</option>
+                        ` : ''}
                     </select>
-                    ${inBranchState.loanConfig.maxAllowedPeriod === 1 ? '<p class="text-xs text-orange-600 mt-1"><i class="fa-solid fa-lock"></i> Limited to 1 month (New Client)</p>' : ''}
                 </div>
+
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">First Repayment Date</label>
-                    <input type="date" id="loan-start-date" class="w-full border-gray-300 rounded-md focus:ring-brand-accent" value="${startDate ? startDate.toISOString().split('T')[0] : ''}">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-                    <input type="text" id="loan-reason" value="${reason}" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
+                    <input type="date" id="loan-start-date" class="w-full border-gray-300 rounded-md focus:ring-brand-accent" 
+                        value="${startDate ? (startDate instanceof Date ? startDate.toISOString().split('T')[0] : startDate.split('T')[0]) : ''}">
+                    <div id="date-error-msg" class="${dateValidation?.valid === false ? '' : 'hidden'} text-xs text-red-600 mt-1 font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-circle-exclamation"></i> <span id="error-text">${dateValidation?.reason || ''}</span>
+                    </div>
                 </div>
             </div>
             
@@ -1066,62 +1488,93 @@ async function renderLoanConfiguration(container) {
                         <span class="text-3xl font-bold text-white">${formatCurrency(amount)}</span>
                         <span class="text-gray-400 mb-1">Principal</span>
                     </div>
-                    <div class="space-y-2 text-sm">
-                        <div class="flex justify-between"><span class="text-gray-400">Interest Rate</span> <span>${(calc.interestRate * 100).toFixed(0)}%</span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Duration</span> <span>${period} Month${period > 1 ? 's' : ''}</span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Initiation Fee</span> <span>${formatCurrency(calc.totalInitiationFees)}</span></div>
-                        <div class="flex justify-between"><span class="text-gray-400">Admin Fees</span> <span>${formatCurrency(calc.totalMonthlyFees)}</span></div>
-                        <div class="flex justify-between border-t border-gray-600 pt-2"><span class="text-gray-300">Total Interest</span> <span>${formatCurrency(calc.totalInterest)}</span></div>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">Total Annual Rate</span> 
+                            <span class="text-lg font-bold text-orange-400">${(calc.totalRate * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pl-4 py-2 bg-gray-900/50 rounded border-l-2 border-orange-500/50">
+                            <div>
+                                <span class="block text-[10px] uppercase text-gray-500 font-bold">Interest</span>
+                                <span class="text-white font-medium">${(calc.interestPortion * 100).toFixed(1)}%</span>
+                            </div>
+                            <div>
+                                <span class="block text-[10px] uppercase text-gray-500 font-bold">Initiation</span>
+                                <span class="text-white font-medium">${(calc.initiationRate * 100).toFixed(0)}%</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between mt-4">
+                            <span class="text-gray-400">Duration</span> 
+                            <span>${period} Month${period > 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-600 pt-2">
+                            <span class="text-gray-300 font-semibold">Total Interest</span> 
+                            <span class="font-bold">${formatCurrency(calc.totalInterest)}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-6 pt-4 border-t border-gray-700">
-                    <div class="flex justify-between items-center"><span class="text-gray-400">Total Repayment</span><span class="text-xl font-bold text-green-400">${formatCurrency(calc.totalRepayment)}</span></div>
-                    <div class="flex justify-between items-center mt-1"><span class="text-xs text-gray-500">Monthly Payment</span><span class="text-sm text-gray-300">${formatCurrency(calc.monthlyPayment)}</span></div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400 font-medium">Total Repayment</span>
+                        <span class="text-xl font-bold text-green-400">${formatCurrency(calc.totalRepayment)}</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-xs text-gray-500">Monthly Installment</span>
+                        <span class="text-sm ${exceedsAffordability ? 'text-red-400 font-bold' : 'text-gray-300'}">${formatCurrency(calc.monthlyPayment)}</span>
+                    </div>
                 </div>
             </div>
         </div>`;
-        
-    const updateState = () => { 
-        inBranchState.loanConfig.amount = Number(document.getElementById('loan-amount').value); 
-        inBranchState.loanConfig.period = Number(document.getElementById('loan-period').value); 
-        const dateValue = document.getElementById('loan-start-date').value; 
-        inBranchState.loanConfig.startDate = dateValue ? new Date(dateValue) : null; 
-        inBranchState.loanConfig.reason = document.getElementById('loan-reason').value; 
+
+    // --- OVERRIDE WIZARD NEXT BUTTON LOGIC ---
+    const nextBtn = document.getElementById('wizard-next-btn');
+    if (nextBtn) {
+        // We keep the button enabled so it is clickable, but we gate the logic
+        nextBtn.disabled = false; 
+        nextBtn.onclick = () => {
+            // Check Date Validity
+            const dateVal = document.getElementById('loan-start-date').value;
+            const validation = validateRepaymentDate(dateVal);
+            
+            if (!dateVal) {
+                return showToast("Please select a first repayment date.", "warning");
+            }
+            if (!validation.valid) {
+                return showToast(`Invalid Date: ${validation.reason}`, "error");
+            }
+
+            // Check Affordability
+            if (exceedsAffordability) {
+                return showToast(`Loan Unaffordable: Max allowed is R ${maxLoan.toLocaleString()}`, "error");
+            }
+
+            // Check Minimum Amount
+            if (amount < 100) {
+                return showToast("Minimum loan amount is R 100.00", "warning");
+            }
+
+            // If all good, proceed
+            handleNextStep();
+        };
+    }
+
+    const updateState = (e) => { 
+        const id = e.target.id;
+        const val = e.target.value;
+
+        if (id === 'loan-amount') inBranchState.loanConfig.amount = Number(val);
+        if (id === 'loan-period') inBranchState.loanConfig.period = Number(val);
+        if (id === 'loan-start-date') inBranchState.loanConfig.startDate = val;
+        if (id === 'loan-reason') inBranchState.loanConfig.reason = val;
+
         renderLoanConfiguration(container); 
     };
     
-    document.getElementById('loan-amount').addEventListener('change', updateState); 
-    document.getElementById('loan-period').addEventListener('change', updateState); 
-    document.getElementById('loan-start-date').addEventListener('change', updateState); 
-    document.getElementById('loan-reason').addEventListener('change', updateState);
+    ['loan-amount', 'loan-period', 'loan-start-date', 'loan-reason'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', updateState);
+    });
 }
-
-function calculateLoanDetails(amount, period, startDate, historyCount) {
-    const MONTHLY_FEE = 60; 
-    const INITIATION_FEE = 165; 
-    const DAYS_PER_MONTH = 30;
-    
-    let interestRate = historyCount < 3 ? 0.20 : 0.18;
-    let totalMonthlyFees = 0;
-    
-    if (startDate && period === 1) {
-        const start = new Date(); 
-        const paymentDate = new Date(startDate);
-        const days = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
-        totalMonthlyFees = (MONTHLY_FEE / DAYS_PER_MONTH) * Math.min(days, DAYS_PER_MONTH);
-    } else { 
-        totalMonthlyFees = MONTHLY_FEE * period; 
-    }
-    
-    const totalInterest = amount * interestRate * (period / 12);
-    const totalInitiationFees = INITIATION_FEE * period;
-    const totalFees = totalMonthlyFees + totalInitiationFees;
-    const totalRepayment = amount + totalInterest + totalFees;
-    const monthlyPayment = totalRepayment / period;
-    
-    return { totalInterest, totalRepayment, monthlyPayment, totalMonthlyFees, totalInitiationFees, interestRate };
-}
-
 // ==========================================
 //   STEP 6: DOCUMENTS (ADMIN FOLDER STRATEGY)
 // ==========================================
@@ -1164,7 +1617,11 @@ async function renderDocumentCheck(container) {
             <div class="space-y-4" id="docs-list"><div class="p-4 text-center"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</div></div>
         </div>`;
         
-    const docTypes = [{ key: 'idcard', label: 'ID Document' }, { key: 'payslip', label: 'Latest Payslip' }, { key: 'bankstatement', label: 'Bank Statement' }];
+    const docTypes = [
+          { key: 'idcard', label: 'ID Document' }, 
+          { key: 'till_slip', label: 'Latest Payslip' }, 
+          { key: 'bank_statement', label: 'Bank Statement' }
+    ];
     
     const listHtml = await Promise.all(docTypes.map(async (doc) => {
         // Fetch from DB
@@ -1231,8 +1688,10 @@ async function renderDocumentCheck(container) {
                 
                 // 1. Upload to Storage
                 const { error: uploadError } = await supabase.storage
-                    .from('client_docs')
-                    .upload(filePath, file); // No more RLS error, because it's YOUR folder!
+                .from('client_docs')
+                .upload(filePath, file, { 
+                    upsert: true // Add this object here
+                });
                 
                 if (uploadError) throw new Error("Storage: " + uploadError.message);
 
@@ -1264,95 +1723,141 @@ async function renderDocumentCheck(container) {
 }
 
 // ==========================================
-//   STEP 7: CONFIRMATION
+//   STEP 7: SECURE CONFIRMATION & BANKING
 // ==========================================
-
 async function renderConfirmation(container) {
     if(!inBranchState.targetUser) return;
-    
+
+    // 1. Calculations
+    const { amount, period, startDate } = inBranchState.loanConfig;
+    const history = inBranchState.loanHistoryCount || 0;
+    const calc = calculateLoanDetails(amount, period, startDate, history);
+    const applicantName = inBranchState.targetUser.full_name;
+
+    // Fetch existing bank accounts for dropdown
     const { data: accounts } = await supabase.from('bank_accounts').select('*').eq('user_id', inBranchState.targetUser.id);
-    const accountsHtml = accounts && accounts.length ? accounts.map(acc => `<option value="${acc.id}">${acc.bank_name} - ${acc.account_number}</option>`).join('') : '<option value="">No saved accounts</option>';
-    
+    const firstDebitDate = startDate ? new Date(startDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Not set';
+
     container.innerHTML = `
-        <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg border border-gray-200 mt-4">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Disbursement Details</h3>
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Select Bank Account</label>
-                <select id="bank-select" class="w-full border-gray-300 rounded-md focus:ring-brand-accent">
-                    ${accountsHtml}
-                    <option value="new">+ Add New Bank Account</option>
-                </select>
+        <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-6 mt-4 animate-fade-in">
+            <div class="md:col-span-3 space-y-6">
+                <div class="bg-white p-8 rounded-2xl border border-gray-200 shadow-xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                            <i class="fa-solid fa-building-columns text-brand-accent"></i> Payout Account
+                        </h3>
+                        <button id="toggle-new-bank" class="text-xs font-bold text-brand-accent bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100">+ ADD NEW</button>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <select id="bank-select" class="w-full border-gray-300 rounded-lg py-3 px-4 bg-white">
+                                <option value="">-- Select Verified Account --</option>
+                                ${accounts?.map(acc => `<option value="${acc.id}">${acc.bank_name} - ****${acc.account_number.slice(-4)}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div id="new-bank-form" class="hidden p-6 bg-gray-900 rounded-2xl border border-gray-700 space-y-4 animate-fade-in">
+                            <div class="grid grid-cols-2 gap-4">
+                                <input type="text" id="new-bank-name" placeholder="Bank Name" class="bg-gray-800 text-white rounded-lg py-2 px-3">
+                                <select id="new-acc-type" class="bg-gray-800 text-white rounded-lg py-2 px-3">
+                                    <option value="savings">Savings</option>
+                                    <option value="cheque">Cheque</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <input type="text" id="new-acc-number" inputmode="numeric" placeholder="Account Number" class="bg-gray-800 text-white rounded-lg py-2 px-3">
+                                <input type="text" id="new-branch-code" inputmode="numeric" placeholder="Branch Code" class="bg-gray-800 text-white rounded-lg py-2 px-3">
+                            </div>
+                            <button id="btn-save-bank" class="w-full bg-brand-accent text-white py-3 rounded-xl font-bold">Link Account</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="bank-preview-container" class="hidden p-6 bg-white border-2 border-brand-accent rounded-2xl shadow-lg animate-fade-in">
+                    <p class="text-[10px] font-bold text-brand-accent uppercase mb-1">Selected Payout Account</p>
+                    <h4 id="preview-bank-name" class="text-xl font-black text-gray-900">---</h4>
+                    <p id="preview-acc-number" class="text-sm text-gray-600 font-mono">---</p>
+                </div>
+
+                <div class="p-6 bg-orange-50 border border-orange-100 rounded-2xl">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" id="admin-consent" class="mt-1 w-5 h-5 text-orange-600 rounded border-orange-300">
+                        <span class="text-xs text-gray-700 leading-tight">I confirm I have physically verified the identity of <strong>${applicantName}</strong> and confirmed the banking details.</span>
+                    </label>
+                </div>
             </div>
-            <div class="border-t border-gray-200 pt-6">
-                <h4 class="font-bold text-gray-900 mb-2">Application Summary</h4>
-                <ul class="text-sm text-gray-600 space-y-1">
-                    <li><strong>Applicant:</strong> ${inBranchState.targetUser.full_name}</li>
-                    <li><strong>Amount:</strong> ${formatCurrency(inBranchState.loanConfig.amount)}</li>
-                    <li><strong>Term:</strong> ${inBranchState.loanConfig.period} Month(s)</li>
-                </ul>
-            </div>
-            <div class="mt-6 flex items-start gap-3">
-                <input type="checkbox" id="admin-consent" class="mt-1 rounded text-brand-accent focus:ring-brand-accent">
-                <label for="admin-consent" class="text-sm text-gray-500">I confirm that I have verified the client's identity in-branch and they have consented to the terms and conditions.</label>
+
+            <div class="md:col-span-2">
+                <div class="bg-gray-800 text-white rounded-2xl shadow-xl overflow-hidden sticky top-4 border border-gray-700">
+                    <div class="p-4 bg-gray-900/50 border-b border-gray-700 text-center"><h4 class="text-[10px] font-bold uppercase text-brand-accent">Loan Offer Summary</h4></div>
+                    <div class="p-8">
+                        <div class="flex justify-between items-end border-b border-gray-700 pb-6 mb-6">
+                            <span class="text-4xl font-black text-white">${formatCurrency(amount)}</span>
+                            <span class="text-gray-400 text-xs font-bold mb-1 uppercase">Principal</span>
+                        </div>
+                        <div class="space-y-4 text-sm">
+                            <div class="flex justify-between items-center"><span class="text-gray-400">Monthly Payout</span><span class="text-2xl font-black text-brand-accent">${formatCurrency(calc.monthlyPayment)}</span></div>
+                            <div class="flex justify-between items-center"><span class="text-gray-400">Total Repayable</span><span class="font-bold text-green-400 text-lg">${formatCurrency(calc.totalRepayment)}</span></div>
+                            <div class="flex justify-between pt-2 border-t border-gray-700"><span class="text-gray-400">Term Duration</span><span class="font-medium">${period} Month${period > 1 ? 's' : ''}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-400">First Debit Date</span><span class="font-bold text-orange-300">${firstDebitDate}</span></div>
+                        </div>
+                    </div>
+                    <div class="p-6 bg-gray-900/80 border-t border-gray-700">
+                        <button id="wizard-next-btn" class="w-full bg-brand-accent hover:bg-orange-600 text-white py-4 rounded-xl font-black text-lg shadow-2xl transition-all disabled:opacity-50">SUBMIT APPLICATION</button>
+                        <p class="text-[9px] text-gray-500 mt-4 italic text-center uppercase tracking-tighter">
+                            ${inBranchState.creditCheck.applicationId ? `Managing Application #${inBranchState.creditCheck.applicationId}` : 'New Loan Application'}
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>`;
-        
-    const checkbox = document.getElementById('admin-consent'); 
-    const submitBtn = document.getElementById('wizard-next-btn'); 
-    submitBtn.disabled = true;
-    
-    checkbox.addEventListener('change', (e) => { 
-        submitBtn.disabled = !e.target.checked; 
-    });
-}
 
-async function handleFinalSubmit() {
-    const btn = document.getElementById('wizard-next-btn'); 
-    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Submitting...'; 
-    btn.disabled = true;
-    
-    try {
-        const { amount, period, reason, startDate } = inBranchState.loanConfig;
-        const calc = calculateLoanDetails(amount, period, startDate, inBranchState.loanHistoryCount);
-        const existingApplicationId = inBranchState.creditCheck?.applicationId;
-        const finalStatus = inBranchState.creditCheck?.status === 'completed' ? 'BUREAU_OK' : 'STARTED';
-        const firstPaymentDate = startDate instanceof Date && !Number.isNaN(startDate?.getTime()) ? startDate.toISOString() : null;
-        
-        const payload = { 
-            user_id: inBranchState.targetUser.id, 
-            amount: amount, 
-            term_months: period, 
-            purpose: reason, 
-            status: finalStatus, 
-            offer_details: { 
-                interest_rate: calc.interestRate, 
-                total_repayment: calc.totalRepayment, 
-                monthly_payment: calc.monthlyPayment, 
-                first_payment_date: firstPaymentDate 
-            } 
-        };
+    // 3. Logic Listeners
+    const bankSelect = document.getElementById('bank-select');
+    const newBankForm = document.getElementById('new-bank-form');
+    const preview = document.getElementById('bank-preview-container');
 
-        if (existingApplicationId) {
-            const { error } = await supabase.from('loan_applications').update(payload).eq('id', existingApplicationId);
-            if (error) throw error;
+    const updatePreview = () => {
+        const val = bankSelect.value;
+        const isFormOpen = !newBankForm.classList.contains('hidden');
+        if(!val && !isFormOpen) { preview.classList.add('hidden'); return; }
+        preview.classList.remove('hidden');
+        if(isFormOpen) {
+            document.getElementById('preview-bank-name').innerText = document.getElementById('new-bank-name').value || '...';
+            document.getElementById('preview-acc-number').innerText = document.getElementById('new-acc-number').value || '...';
         } else {
-            const { data: newApp, error } = await supabase.from('loan_applications').insert([payload]).select().single();
-            if (error) throw error;
-            inBranchState.creditCheck.applicationId = newApp.id;
+            const acc = accounts.find(a => a.id == val);
+            if(acc) {
+                document.getElementById('preview-bank-name').innerText = acc.bank_name;
+                document.getElementById('preview-acc-number').innerText = acc.account_number;
+            }
         }
-        
-        showToast('Application Created Successfully!', 'success');
-        document.getElementById('in-branch-view').classList.add('hidden'); 
-        document.getElementById('applications-list-view').classList.remove('hidden');
-        await loadApplications(); 
-        
-    } catch (err) { 
-        showToast('Error: ' + err.message, 'error'); 
-        btn.disabled = false; 
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane mr-2"></i> Submit Application'; 
-    }
-}
+    };
 
+    document.getElementById('toggle-new-bank').onclick = () => { newBankForm.classList.toggle('hidden'); bankSelect.value = ""; updatePreview(); };
+    bankSelect.onchange = () => { newBankForm.classList.add('hidden'); updatePreview(); };
+    ['new-bank-name', 'new-acc-number'].forEach(id => document.getElementById(id).oninput = updatePreview);
+
+    document.getElementById('admin-consent').onchange = (e) => { document.getElementById('wizard-next-btn').disabled = !e.target.checked; };
+    document.getElementById('wizard-next-btn').onclick = handleFinalSubmit;
+
+    // Save Bank Handler
+    document.getElementById('btn-save-bank').onclick = async () => {
+        const payload = {
+            user_id: inBranchState.targetUser.id,
+            bank_name: document.getElementById('new-bank-name').value,
+            account_holder: applicantName,
+            account_number: document.getElementById('new-acc-number').value,
+            branch_code: document.getElementById('new-branch-code').value,
+            account_type: document.getElementById('new-acc-type').value,
+            is_verified: true,
+            created_by_admin: (await supabase.auth.getUser()).data.user.id
+        };
+        const { data: newAcc, error } = await supabase.from('bank_accounts').insert([payload]).select().single();
+        if(!error) { await renderConfirmation(container); document.getElementById('bank-select').value = newAcc.id; updatePreview(); }
+    };
+}
 // ==========================================
 //   NAVIGATION & UTILS
 // ==========================================
@@ -1369,10 +1874,34 @@ document.addEventListener('click', (e) => {
     if(e.target.id === 'wizard-prev-btn' && inBranchState.step > 1) { 
         inBranchState.step--; 
         renderWizard(); 
-    } 
-    if(e.target.id === 'back-to-list-btn' && confirm('Exit in-branch mode? Unsaved progress will be lost.')) { 
-        document.getElementById('in-branch-view').classList.add('hidden'); 
-        document.getElementById('applications-list-view').classList.remove('hidden'); 
+    }
+      
+    const cancelBtn = e.target.closest('#back-to-list-btn');
+    if (cancelBtn) {
+        if (!cancelBtn.dataset.confirming) {
+            // First click: Change the button state and show a toast
+            cancelBtn.dataset.confirming = "true";
+            cancelBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Click again to Confirm';
+            cancelBtn.classList.add('text-red-600', 'font-bold');
+            
+            showToast('Unsaved progress will be lost. Click again to exit.', 'warning');
+
+            // Reset the button back to normal if they don't click again within 3 seconds
+            setTimeout(() => {
+                cancelBtn.dataset.confirming = "";
+                cancelBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Cancel';
+                cancelBtn.classList.remove('text-red-600', 'font-bold');
+            }, 3000);
+        } else {
+            // Second click: The admin has confirmed, so exit now
+            document.getElementById('in-branch-view').classList.add('hidden'); 
+            document.getElementById('applications-list-view').classList.remove('hidden'); 
+            
+            // Cleanup button state for next time
+            cancelBtn.dataset.confirming = "";
+            cancelBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Cancel';
+            cancelBtn.classList.remove('text-red-600', 'font-bold');
+        }
     }
 
     // Localhost Logout Fix
@@ -1497,6 +2026,7 @@ function attachEventListeners() {
     });
 }
 
+// --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => { 
     const auth = await initLayout(); 
     if(auth) { 
@@ -1505,3 +2035,87 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadApplications(); 
     } 
 });
+
+// --- Final Application Submission ---
+async function handleFinalSubmit() {
+    const nextBtn = document.getElementById('wizard-next-btn');
+    if (!nextBtn) return; // Guard clause to ensure button exists
+
+    nextBtn.disabled = true;
+    nextBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+
+    try {
+        const { amount, period, startDate } = inBranchState.loanConfig;
+        const history = inBranchState.loanHistoryCount || 0;
+        
+        // Generate the full fee breakdown based on current state
+        const calc = calculateLoanDetails(amount, period, startDate, history);
+        
+        let bankId = document.getElementById('bank-select').value;
+
+        // Handle bank account selection or new creation
+        if (bankId === 'new') {
+            const newBank = {
+                user_id: inBranchState.targetUser.id,
+                bank_name: document.getElementById('new-bank-name').value,
+                account_holder: inBranchState.targetUser.full_name,
+                account_number: document.getElementById('new-account-number').value,
+                branch_code: document.getElementById('new-branch-code').value,
+                account_type: document.getElementById('new-account-type').value.toLowerCase(),
+                is_verified: true,
+                created_by_admin: (await supabase.auth.getUser()).data.user.id
+            };
+
+            const { data: savedBank, error: bankError } = await supabase
+                .from('bank_accounts')
+                .insert([newBank])
+                .select()
+                .single();
+
+            if (bankError) throw new Error("Bank Save Failed: " + bankError.message);
+            bankId = savedBank.id;
+        }
+
+        if (!bankId) throw new Error("Please select or add a bank account.");
+
+        // Prepare application update payload
+        const updatePayload = {
+            status: 'AFFORD_OK', 
+            amount: amount,
+            term_months: period,
+            bank_account_id: bankId,
+            updated_at: new Date().toISOString(),
+            offer_principal: amount,
+            offer_interest_rate: calc.totalRate,
+            offer_total_interest: calc.totalInterest,
+            offer_total_initiation_fees: calc.totalInitiationFees,
+            offer_monthly_repayment: calc.monthlyPayment,
+            offer_total_repayment: calc.totalRepayment,
+            offer_total_admin_fees: calc.totalMonthlyFees,
+            offer_details: {
+                first_repayment_date: startDate,
+                interest_portion: calc.interestPortion,
+                initiation_rate: calc.initiationRate,
+                source: "In-Branch Admin Terminal"
+            },
+            notes: `In-branch application for ${inBranchState.targetUser.full_name}. Verified by Admin.`
+        };
+
+        // Update the application record in Supabase
+        const { error: appError } = await supabase
+            .from('loan_applications')
+            .update(updatePayload)
+            .eq('id', inBranchState.creditCheck.applicationId);
+
+        if (appError) throw appError;
+
+        showToast("Application Submitted Successfully!", "success");
+        setTimeout(() => window.location.reload(), 1500);
+
+    } catch (err) {
+        console.error("Submission Error:", err);
+        showToast(err.message, "error");
+        nextBtn.disabled = false;
+        nextBtn.innerHTML = 'Submit Application';
+    }
+}

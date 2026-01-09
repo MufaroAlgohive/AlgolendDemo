@@ -24,6 +24,7 @@ const dashboardData = {
     creditScore: 0,
     totalBorrowed: 0,
     totalRepaid: 0,
+    repaymentSeries: null,
     loans: [
         // Active loans will be fetched from Supabase
         // Example structure:
@@ -83,14 +84,17 @@ const getThemePalette = () => {
     const styles = getComputedStyle(document.documentElement);
     const read = (name, fallback) => (styles.getPropertyValue(name).trim() || fallback);
     const primaryRgb = read('--color-primary-rgb', '231 118 46');
+    const secondaryRgb = read('--color-secondary-rgb', '14 165 233');
     return {
         primary: read('--color-primary', '#E7762E'),
         primarySoft: read('--color-primary-soft', '#ff9f5a'),
+        secondary: read('--color-secondary', '#0ea5e9'),
         secondarySoft: read('--color-secondary-soft', '#ffb26b'),
         surfaceCard: read('--color-surface-card', '#ffffff'),
         text: read('--color-text', '#0f172a'),
         textMuted: read('--color-text-muted', '#475569'),
-        primaryAlpha: (alpha) => `rgb(${primaryRgb} / ${alpha})`
+        primaryAlpha: (alpha) => `rgb(${primaryRgb} / ${alpha})`,
+        secondaryAlpha: (alpha) => `rgb(${secondaryRgb} / ${alpha})`
     };
 };
 
@@ -399,24 +403,35 @@ loadDashboardData();
 // Initialize charts
 let repaymentChart, loanBreakdownChart;
 
+function applyRepaymentChart(labels = [], data = []) {
+    if (!repaymentChart) {
+        dashboardData.repaymentSeries = { labels, data };
+        return;
+    }
+    repaymentChart.data.labels = labels;
+    repaymentChart.data.datasets[0].data = data;
+    repaymentChart.update();
+}
+
 function initializeCharts() {
     const palette = getThemePalette();
     // Repayment Trends Chart
     const repaymentCtx = document.getElementById('repaymentChart');
     if (repaymentCtx) {
+        console.log('📈 Creating repayment trends chart');
         const lineCtx = repaymentCtx.getContext('2d');
         const lineGradient = lineCtx.createLinearGradient(0, 0, 0, repaymentCtx.height);
         lineGradient.addColorStop(0, palette.primaryAlpha(0.35));
-        lineGradient.addColorStop(1, palette.primaryAlpha(0.05));
+        lineGradient.addColorStop(1, palette.secondaryAlpha(0.08));
 
         repaymentChart = new Chart(repaymentCtx, {
             type: 'line',
             data: {
-                labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'],
+                labels: dashboardData.repaymentSeries?.labels || ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'],
                 datasets: [{
                     label: 'Payments Made',
-                    data: [0, 0, 0, 0, 0, 0], // Will be populated from Supabase
-                    borderColor: palette.primarySoft,
+                    data: dashboardData.repaymentSeries?.data || [0, 0, 0, 0, 0, 0],
+                    borderColor: palette.primary,
                     backgroundColor: lineGradient,
                     borderWidth: 3,
                     fill: true,
@@ -424,11 +439,11 @@ function initializeCharts() {
                     pointRadius: 5,
                     pointHoverRadius: 7,
                     pointBackgroundColor: palette.surfaceCard,
-                    pointBorderColor: palette.secondarySoft,
+                    pointBorderColor: palette.primary,
                     pointBorderWidth: 3,
                     pointHoverBorderWidth: 3,
                     segment: {
-                        borderColor: ctx => ctx.p0.skip || ctx.p1.skip ? 'rgba(255,255,255,0.15)' : palette.primarySoft
+                        borderColor: ctx => ctx.p0.skip || ctx.p1.skip ? 'rgba(255,255,255,0.15)' : palette.primary
                     }
                 }]
             },
@@ -485,16 +500,20 @@ function initializeCharts() {
                 }
             }
         });
+        if (dashboardData.repaymentSeries) {
+            applyRepaymentChart(dashboardData.repaymentSeries.labels, dashboardData.repaymentSeries.data);
+        }
     }
 
     // Loan Breakdown Chart (Doughnut)
     const breakdownCtx = document.getElementById('loanBreakdownChart');
     if (breakdownCtx) {
+        console.log('🍩 Creating loan breakdown chart');
         const donutCtx = breakdownCtx.getContext('2d');
         const brightOrange = donutCtx.createLinearGradient(0, 0, breakdownCtx.width, breakdownCtx.height);
         brightOrange.addColorStop(0, palette.primaryAlpha(0.95));
-        brightOrange.addColorStop(1, palette.primaryAlpha(0.9));
-        const mutedOrange = palette.primaryAlpha(0.15);
+        brightOrange.addColorStop(1, palette.secondaryAlpha(0.85));
+        const mutedOrange = palette.secondaryAlpha(0.2);
 
         loanBreakdownChart = new Chart(breakdownCtx, {
             type: 'doughnut',
@@ -503,9 +522,9 @@ function initializeCharts() {
                 datasets: [{
                     data: [0, 0], // Will be populated from Supabase (dashboardData.totalRepaid, dashboardData.currentBalance)
                     backgroundColor: [brightOrange, mutedOrange],
-                    borderColor: ['#fff5eb', '#2f2f2f'],
-                    hoverBorderColor: ['#ffffff', '#3a3a3a'],
-                    borderWidth: 3,
+                    borderColor: [palette.primary, palette.secondaryAlpha(0.5)],
+                    hoverBorderColor: [palette.primary, palette.secondary],
+                    borderWidth: 2,
                     hoverOffset: 8,
                     offset: 4
                 }]
@@ -547,7 +566,22 @@ function initializeCharts() {
                 rotation: -90
             }
         });
+        updateLoanBreakdownChart(dashboardData.totalRepaid, dashboardData.currentBalance);
     }
+}
+
+function updateLoanBreakdownChart(totalRepaid = 0, outstanding = 0) {
+    dashboardData.totalRepaid = totalRepaid;
+    dashboardData.currentBalance = outstanding;
+    if (!loanBreakdownChart) {
+        return;
+    }
+    const dataset = loanBreakdownChart.data?.datasets?.[0];
+    if (!dataset) {
+        return;
+    }
+    dataset.data = [Math.max(totalRepaid, 0), Math.max(outstanding, 0)];
+    loanBreakdownChart.update();
 }
 
 // Update chart period
@@ -577,12 +611,39 @@ window.updateChartPeriod = function(period) {
     }
 };
 
-// Initialize charts when page loads
-if (typeof Chart !== 'undefined') {
-    initializeCharts();
+// Initialize charts when page loads with capped retries to avoid console spam
+let chartInitAttempts = 0;
+const CHART_INIT_MAX_RETRIES = 15;
+
+function tryInitCharts() {
+    const hasChartJs = typeof Chart !== 'undefined';
+    const repaymentCanvas = document.getElementById('repaymentChart');
+    const breakdownCanvas = document.getElementById('loanBreakdownChart');
+    const hasCanvas = repaymentCanvas && breakdownCanvas;
+
+    if (hasChartJs && hasCanvas) {
+        console.log('📊 Initializing charts with Chart.js');
+        initializeCharts();
+        return;
+    }
+
+    chartInitAttempts += 1;
+    if (chartInitAttempts === 1 || chartInitAttempts === Math.ceil(CHART_INIT_MAX_RETRIES / 2)) {
+        console.log('⏳ Waiting for Chart.js or chart canvas elements...');
+    }
+
+    if (chartInitAttempts >= CHART_INIT_MAX_RETRIES) {
+        console.warn('⚠️ Charts not initialized after waiting: verify Chart.js is loaded and canvases are on the page.');
+        return;
+    }
+
+    setTimeout(tryInitCharts, 300);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInitCharts, { once: true });
 } else {
-    // Wait for Chart.js to load
-    window.addEventListener('load', initializeCharts);
+    tryInitCharts();
 }
 
 // ==========================================
@@ -602,6 +663,49 @@ async function loadDashboardData() {
 
         await hydrateCreditScore(supabase, session.user.id);
         
+        // Fetch payments for this user (to compute remaining balances)
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('loan_id, amount, payment_date')
+            .eq('user_id', session.user.id);
+
+        if (paymentsError) {
+            console.error('Error fetching payments:', paymentsError);
+        }
+
+        const paymentsByLoan = (payments || []).reduce((acc, payment) => {
+            const loanId = payment.loan_id;
+            const amt = Number(payment.amount) || 0;
+            acc[loanId] = (acc[loanId] || 0) + amt;
+            return acc;
+        }, {});
+
+        const totalRepaidAllLoans = (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+        // Build repayment trend for the past 6 months including current
+        const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+        const now = new Date();
+        const months = Array.from({ length: 6 }, (_, i) => {
+            const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1));
+            const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+            return { key, label: monthFormatter.format(d), year: d.getUTCFullYear(), month: d.getUTCMonth() };
+        });
+
+        const repaymentBuckets = months.reduce((acc, m) => ({ ...acc, [m.key]: 0 }), {});
+        (payments || []).forEach((p) => {
+            if (!p.payment_date) return;
+            const dt = new Date(p.payment_date);
+            if (Number.isNaN(dt.getTime())) return;
+            const key = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`;
+            if (key in repaymentBuckets) {
+                repaymentBuckets[key] += Number(p.amount) || 0;
+            }
+        });
+
+        const repaymentLabels = months.map(m => m.label);
+        const repaymentData = months.map(m => repaymentBuckets[m.key]);
+        dashboardData.repaymentSeries = { labels: repaymentLabels, data: repaymentData };
+
         // Fetch active loans from loans table
         const { data: loans, error: loansError } = await supabase
             .from('loans')
@@ -615,21 +719,26 @@ async function loadDashboardData() {
         } else if (loans && loans.length > 0) {
             console.log('✅ Found loans:', loans);
             
-            // Calculate total borrowed (sum of all principal amounts)
-            const totalBorrowed = loans.reduce((sum, loan) => sum + (Number(loan.principal_amount) || 0), 0);
-            dashboardData.totalBorrowed = totalBorrowed;
-            
-            // Update the total borrowed display
-            document.getElementById('totalBorrowed').textContent = formatCurrency(totalBorrowed);
-
             const enrichedLoans = loans.map((loan) => {
                 const principal = Number(loan.principal_amount) || 0;
                 const termMonths = Number(loan.term_months) || 0;
                 const rawRate = Number(loan.interest_rate) || 0;
                 const normalizedRate = rawRate > 1 ? rawRate / 100 : rawRate; // handle stored percentages
-                const monthlyPayment = calculateMonthlyPayment(principal, normalizedRate, termMonths);
-                const dueDateObj = loan.next_payment_date ? new Date(loan.next_payment_date) : null;
-                const outstandingBalance = Number(loan.outstanding_balance) || principal;
+                const storedMonthly = Number(loan.monthly_payment) || 0;
+                const monthlyPayment = storedMonthly || calculateMonthlyPayment(principal, normalizedRate, termMonths);
+                const rawNextPayment = loan.next_payment_date || loan.first_payment_date || loan.repayment_start_date;
+                let dueDateObj = null;
+                if (rawNextPayment) {
+                    const candidate = new Date(rawNextPayment);
+                    if (!Number.isNaN(candidate.getTime())) {
+                        candidate.setUTCHours(0, 0, 0, 0);
+                        dueDateObj = candidate;
+                    }
+                }
+                const totalRepayment = Number(loan.total_repayment || 0);
+                const paidToDate = paymentsByLoan[loan.id] || 0;
+                const totalDue = totalRepayment || principal;
+                const outstandingBalance = Math.max(totalDue - paidToDate, 0);
                 return {
                     ...loan,
                     principal,
@@ -637,9 +746,28 @@ async function loadDashboardData() {
                     normalizedRate,
                     monthlyPayment,
                     dueDateObj,
-                    outstandingBalance
+                    outstandingBalance,
+                    totalRepayment: totalRepayment || monthlyPayment * (termMonths || 1),
+                    paidToDate
                 };
             });
+
+            const loanTotals = enrichedLoans.reduce((acc, loan) => {
+                const totalDue = loan.totalRepayment || loan.principal;
+                acc.borrowed += totalDue;
+                acc.outstanding += loan.outstandingBalance;
+                acc.repaid += loan.paidToDate || 0;
+                return acc;
+            }, { borrowed: 0, outstanding: 0, repaid: 0 });
+
+            dashboardData.totalBorrowed = loanTotals.borrowed;
+            dashboardData.currentBalance = loanTotals.outstanding;
+            dashboardData.totalRepaid = loanTotals.repaid || totalRepaidAllLoans;
+
+            document.getElementById('totalBorrowed').textContent = formatCurrency(loanTotals.borrowed);
+            document.getElementById('currentBalance').textContent = formatCurrency(loanTotals.outstanding);
+            document.getElementById('totalRepaid').textContent = formatCurrency(loanTotals.repaid || totalRepaidAllLoans);
+            updateLoanBreakdownChart(loanTotals.repaid || totalRepaidAllLoans, loanTotals.outstanding);
 
             const upcomingPayment = enrichedLoans.reduce((best, loan) => {
                 if (!loan.monthlyPayment) {
@@ -665,22 +793,27 @@ async function loadDashboardData() {
                 updateNextPaymentDisplay(0, null);
             }
 
+            if (dashboardData.repaymentSeries) {
+                applyRepaymentChart(dashboardData.repaymentSeries.labels, dashboardData.repaymentSeries.data);
+            }
+
             // Transform loans to dashboard format (show top 3)
             dashboardData.loans = enrichedLoans.slice(0, 3).map(loan => {
                 const readableStatus = loan.status
                     ? `${loan.status.charAt(0).toUpperCase()}${loan.status.slice(1).toLowerCase()}`
                     : 'Active';
                 return {
-                id: `LOAN-${loan.id}`,
-                amount: formatCurrency(loan.principal),
-                remaining: formatCurrency(loan.outstandingBalance),
-                nextPayment: formatCurrency(loan.monthlyPayment),
-                dueDate: loan.dueDateObj 
-                    ? loan.dueDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                    : 'TBD',
-                interestRate: `${(loan.normalizedRate * 100).toFixed(2)}%`,
-                status: readableStatus
-            };
+                    id: `LOAN-${loan.id}`,
+                    amount: formatCurrency(loan.totalRepayment || loan.principal),
+                    remaining: formatCurrency(loan.outstandingBalance || loan.totalRepayment || loan.principal),
+                    nextPayment: formatCurrency(loan.monthlyPayment),
+                    dueDate: loan.dueDateObj 
+                        ? loan.dueDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        : 'TBD',
+                    interestRate: `${(loan.normalizedRate * 100).toFixed(2)}%`,
+                    status: readableStatus,
+                    totalAmount: loan.totalRepayment || loan.principal
+                };
             });
             
             // Update the active loans section
@@ -688,8 +821,16 @@ async function loadDashboardData() {
         } else {
             console.log('No active loans found');
             dashboardData.totalBorrowed = 0;
+            dashboardData.currentBalance = 0;
+            dashboardData.totalRepaid = totalRepaidAllLoans;
             document.getElementById('totalBorrowed').textContent = formatCurrency(0);
+            document.getElementById('currentBalance').textContent = formatCurrency(0);
+            document.getElementById('totalRepaid').textContent = formatCurrency(totalRepaidAllLoans);
+            updateLoanBreakdownChart(totalRepaidAllLoans, 0);
             updateNextPaymentDisplay(0, null);
+            if (dashboardData.repaymentSeries) {
+                applyRepaymentChart(dashboardData.repaymentSeries.labels, dashboardData.repaymentSeries.data);
+            }
         }
         
         // Fetch recent applications (exclude OFFERED and DISBURSED since they're now in loans table)
@@ -749,8 +890,153 @@ async function loadDashboardData() {
 }
 
 // Module functions - Will open as popups later
+// --- Active Loans Modal ---
+const LOANS_MODAL_ID = 'active-loans-modal';
+
+function ensureLoansModalStyles() {
+        if (document.getElementById('loans-modal-style')) return;
+        const style = document.createElement('style');
+        style.id = 'loans-modal-style';
+        style.textContent = `
+            #${LOANS_MODAL_ID} { position: fixed; inset: 0; background: rgba(15,23,42,0.35); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 24px; }
+            #${LOANS_MODAL_ID}.open { display: flex; }
+            #${LOANS_MODAL_ID} .modal-panel { width: min(1100px, 95vw); max-height: min(85vh, 900px); background: #ffffff; color: #0f172a; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 70px rgba(15,23,42,0.25); border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+            #${LOANS_MODAL_ID} .modal-header { padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(135deg, var(--color-primary, #0ea5e9), #f8fafc); border-bottom: 1px solid #e2e8f0; }
+            #${LOANS_MODAL_ID} .modal-title { font-size: 18px; font-weight: 800; letter-spacing: 0.2px; color: #0f172a; }
+            #${LOANS_MODAL_ID} .modal-actions { display: flex; align-items: center; gap: 10px; }
+            #${LOANS_MODAL_ID} .pill { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #eef2ff; color: #312e81; border: 1px solid #c7d2fe; }
+            #${LOANS_MODAL_ID} .close-btn { background: #f8fafc; border: 1px solid #e2e8f0; color: #0f172a; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; cursor: pointer; transition: all 0.2s ease; }
+            #${LOANS_MODAL_ID} .close-btn:hover { background: #e2e8f0; transform: translateY(-1px); }
+            #${LOANS_MODAL_ID} .modal-body { padding: 20px 24px 24px; overflow: hidden; display: flex; flex-direction: column; gap: 16px; }
+            #${LOANS_MODAL_ID} .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+            #${LOANS_MODAL_ID} .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; }
+            #${LOANS_MODAL_ID} .stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 700; }
+            #${LOANS_MODAL_ID} .stat-value { margin-top: 6px; font-size: 22px; font-weight: 800; color: #0f172a; }
+            #${LOANS_MODAL_ID} .loans-scroll { max-height: 520px; overflow-y: auto; padding-right: 6px; }
+            #${LOANS_MODAL_ID} .loan-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(15,23,42,0.05); }
+            #${LOANS_MODAL_ID} .loan-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+            #${LOANS_MODAL_ID} .loan-id { font-weight: 800; letter-spacing: 0.2px; color: #0f172a; }
+            #${LOANS_MODAL_ID} .loan-status { padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; }
+            #${LOANS_MODAL_ID} .loan-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+            #${LOANS_MODAL_ID} .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: #475569; font-weight: 700; }
+            #${LOANS_MODAL_ID} .value { font-size: 15px; font-weight: 700; color: #0f172a; margin-top: 4px; }
+            #${LOANS_MODAL_ID} .progress { margin-top: 12px; }
+            #${LOANS_MODAL_ID} .progress-top { display: flex; justify-content: space-between; font-size: 12px; color: #475569; font-weight: 700; margin-bottom: 6px; }
+            #${LOANS_MODAL_ID} .progress-bar { width: 100%; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+            #${LOANS_MODAL_ID} .progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--color-primary, #0ea5e9), #0284c7); transition: width 0.3s ease; }
+            #${LOANS_MODAL_ID} .empty-state { text-align: center; padding: 40px 10px; color: #475569; font-weight: 700; }
+        `;
+        document.head.appendChild(style);
+}
+
+function ensureLoansModalRoot() {
+        ensureLoansModalStyles();
+        let root = document.getElementById(LOANS_MODAL_ID);
+        if (!root) {
+                root = document.createElement('div');
+                root.id = LOANS_MODAL_ID;
+                root.innerHTML = `
+                    <div class="modal-panel" role="dialog" aria-modal="true">
+                        <div class="modal-header">
+                            <div class="modal-title">Active Loans</div>
+                            <div class="modal-actions">
+                                <span class="pill" id="loans-count-pill">0 Loans</span>
+                                <button class="close-btn" id="close-loans-modal" aria-label="Close">×</button>
+                            </div>
+                        </div>
+                        <div class="modal-body">
+                            <div class="stats-grid" id="loans-stats"></div>
+                            <div class="loans-scroll" id="loans-scroll"></div>
+                        </div>
+                    </div>`;
+                document.body.appendChild(root);
+                root.addEventListener('click', (e) => { if (e.target === root) closeLoansModal(); });
+                root.querySelector('#close-loans-modal').addEventListener('click', closeLoansModal);
+        }
+        return root;
+}
+
+function formatCurrencySafe(val) {
+        const num = Number(val);
+        if (Number.isNaN(num)) return 'R 0.00';
+        return 'R ' + num.toLocaleString('en-ZA', { minimumFractionDigits: 2 });
+}
+
+function parseRandToNumber(val) {
+        if (!val) return 0;
+        return Number(String(val).replace(/[^0-9.-]/g, '')) || 0;
+}
+
+function buildLoansModalContent(loans) {
+        const activeLoans = loans.filter(l => l.status === 'Active' || l.status === 'Offered');
+        const count = activeLoans.length;
+        const totalPrincipal = activeLoans.reduce((sum, l) => sum + parseRandToNumber(l.amount), 0);
+        const totalRemaining = activeLoans.reduce((sum, l) => sum + (parseRandToNumber(l.remaining || l.amount)), 0);
+
+        const statsHtml = `
+            <div class="stat-card"><div class="stat-label">Active / Offered</div><div class="stat-value">${count}</div></div>
+            <div class="stat-card"><div class="stat-label">Total Principal</div><div class="stat-value">${formatCurrencySafe(totalPrincipal)}</div></div>
+            <div class="stat-card"><div class="stat-label">Total Outstanding</div><div class="stat-value">${formatCurrencySafe(totalRemaining)}</div></div>
+        `;
+
+        const listHtml = count === 0 ? '<div class="empty-state">No active loans right now.</div>' : activeLoans.map(loan => {
+                const principal = parseRandToNumber(loan.amount);
+                const remaining = parseRandToNumber(loan.remaining || loan.amount);
+                const progressRaw = principal ? ((principal - remaining) / principal) * 100 : 0;
+                const progress = Math.max(0, Math.min(100, Math.round(progressRaw)));
+                return `
+                    <div class="loan-card">
+                        <div class="loan-head">
+                            <span class="loan-id">${loan.id}</span>
+                            <span class="loan-status">${loan.status}</span>
+                        </div>
+                        <div class="loan-main">
+                            <div>
+                                <div class="label">Amount</div>
+                                <div class="value">${loan.amount}</div>
+                            </div>
+                            <div>
+                                <div class="label">Remaining</div>
+                                <div class="value">${loan.remaining || loan.amount}</div>
+                            </div>
+                            <div>
+                                <div class="label">Next Payment</div>
+                                <div class="value">${loan.nextPayment || 'TBD'}</div>
+                            </div>
+                            <div>
+                                <div class="label">Due Date</div>
+                                <div class="value">${loan.dueDate || 'TBD'}</div>
+                            </div>
+                            <div>
+                                <div class="label">Interest Rate</div>
+                                <div class="value">${loan.interestRate || 'TBD'}</div>
+                            </div>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-top">
+                                <span>Repayment Progress</span>
+                                <span>${progress}%</span>
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+                        </div>
+                    </div>`;
+        }).join('');
+
+        const root = ensureLoansModalRoot();
+        root.querySelector('#loans-count-pill').textContent = `${count} Loan${count === 1 ? '' : 's'}`;
+        root.querySelector('#loans-stats').innerHTML = statsHtml;
+        root.querySelector('#loans-scroll').innerHTML = listHtml;
+        root.classList.add('open');
+}
+
+function closeLoansModal() {
+        const root = document.getElementById(LOANS_MODAL_ID);
+        if (root) root.classList.remove('open');
+}
+
 window.openLoansModule = function() {
-    alert('Active Loans Module - Coming Soon!\nThis will show your loan portfolio in a popup.');
+        ensureLoansModalRoot();
+        buildLoansModalContent(dashboardData.loans);
 };
 
 window.openChartsModule = function() {

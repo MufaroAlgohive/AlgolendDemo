@@ -41,6 +41,43 @@ let loanConfig = {
   affordabilityRatio: null // Max monthly payment from financial profile
 };
 
+function parseDateInputValue(value) {
+  if (!value) return null;
+  const parts = value.split('-').map(Number);
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+  const [year, month, day] = parts;
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+}
+
+function formatDateForInput(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const working = new Date(date);
+  working.setUTCHours(0, 0, 0, 0);
+  return working.toISOString().split('T')[0];
+}
+
+function toIsoDateMidnight(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const normalized = new Date(date);
+  normalized.setUTCHours(0, 0, 0, 0);
+  return normalized.toISOString();
+}
+
+function getConfiguredStartDate() {
+  const value = loanConfig.startDate;
+  if (!value) return null;
+  if (value instanceof Date) {
+    return value;
+  }
+  return parseDateInputValue(value);
+}
+
 // Check user's loan history to determine max allowed period
 async function checkLoanHistory() {
   try {
@@ -297,30 +334,25 @@ function initializeDatePicker() {
 
   // Set minimum date to today
   const today = new Date();
-  today.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-  dateInput.min = today.toISOString().split('T')[0];
+  today.setHours(12, 0, 0, 0);
+  dateInput.min = formatDateForInput(today);
 
-  // Set max date to last day of current month plus one day to include it
   const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  lastDayOfMonth.setHours(23, 59, 59, 999); // End of day
-  dateInput.max = lastDayOfMonth.toISOString().split('T')[0];
+  lastDayOfMonth.setHours(12, 0, 0, 0);
+  dateInput.max = formatDateForInput(lastDayOfMonth);
 
-  // Set default date to tomorrow (if within current month, otherwise last day of month)
-  const defaultDate = new Date();
-  defaultDate.setDate(defaultDate.getDate() + 1);
-  defaultDate.setHours(12, 0, 0, 0);
-  
-  // If default would be in next month, use last day of current month instead
-  if (defaultDate.getMonth() !== today.getMonth()) {
-    dateInput.value = lastDayOfMonth.toISOString().split('T')[0];
-    loanConfig.startDate = lastDayOfMonth;
-  } else {
-    dateInput.value = defaultDate.toISOString().split('T')[0];
-    loanConfig.startDate = defaultDate;
-  }
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const defaultValue = tomorrow.getMonth() !== today.getMonth()
+    ? formatDateForInput(lastDayOfMonth)
+    : formatDateForInput(tomorrow);
+
+  dateInput.value = defaultValue;
+  loanConfig.startDate = parseDateInputValue(defaultValue);
 
   dateInput.addEventListener('change', (e) => {
-    loanConfig.startDate = new Date(e.target.value);
+    loanConfig.startDate = parseDateInputValue(e.target.value);
   });
 
   if (icon && !icon.dataset.pickerBound) {
@@ -338,7 +370,10 @@ function initializeDatePicker() {
 }
 
 function getLoanSummary() {
-  const { amount, period, interestRate, startDate } = loanConfig;
+  // Normalize core inputs to avoid zero/NaN edge cases before math
+  const amount = Math.max(0, Number(loanConfig.amount) || 0);
+  const period = Math.max(1, Number(loanConfig.period) || 1);
+  const interestRate = Number(loanConfig.interestRate) || 0;
   const MONTHLY_FEE = 60; // R60 admin fee per 30-day period
   const INITIATION_FEE_RATE = 0.15; // 15% of loan amount per month
   const CREDIT_LIFE_RATE = 0.0045; // 0.45% of initial loan amount
@@ -347,10 +382,13 @@ function getLoanSummary() {
   // Calculate prorated admin fee based on repayment schedule
   let totalMonthlyFees = 0;
   
-  if (startDate) {
+  const configuredStartDate = getConfiguredStartDate();
+  if (configuredStartDate) {
     // Calculate days from loan start to first payment date
     const start = new Date();
-    const paymentDate = new Date(startDate);
+    start.setHours(12, 0, 0, 0);
+    const paymentDate = new Date(configuredStartDate);
+    paymentDate.setHours(12, 0, 0, 0);
     
     // Calculate actual days between today and payment date
     const daysUntilPayment = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
@@ -387,8 +425,9 @@ function getLoanSummary() {
   
   // Combined total fees
   const totalFees = totalMonthlyFees + totalInitiationFees;
-  const creditLifeMonthly = period > 0 ? (amount * CREDIT_LIFE_RATE) / period : 0;
-  const totalCreditLife = creditLifeMonthly * period;
+  // Credit life is 0.45% of principal, spread evenly across the term
+  const totalCreditLife = Number((amount * CREDIT_LIFE_RATE).toFixed(2));
+  const creditLifeMonthly = Number((totalCreditLife / period).toFixed(2));
   const combinedFees = totalFees + totalCreditLife;
   
   // Total repayment = principal + total interest + all fees (incl. credit life)
@@ -417,6 +456,7 @@ function getLoanSummary() {
 
 // Calculate Interest and Update Summary
 function calculateAndUpdateSummary() {
+  const configuredStartDate = getConfiguredStartDate();
   const summary = getLoanSummary();
 
   document.getElementById('summaryAmount').textContent = `R ${formatCurrency(loanConfig.amount)}`;
@@ -430,9 +470,11 @@ function calculateAndUpdateSummary() {
     summaryFeeElement.textContent = `R ${formatCurrency(summary.totalMonthlyFees)}`;
     
     // Add proration notice for all loans with start date
-    if (loanConfig.startDate) {
+    if (configuredStartDate) {
       const start = new Date();
-      const paymentDate = new Date(loanConfig.startDate);
+      start.setHours(12, 0, 0, 0);
+      const paymentDate = new Date(configuredStartDate);
+      paymentDate.setHours(12, 0, 0, 0);
       const daysUntilPayment = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
       const proratedDays = Math.min(daysUntilPayment, 30);
       
@@ -501,9 +543,9 @@ function initializeSignatureCanvas() {
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
 
-  // Drawing settings for dark theme
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
+  // Drawing settings: dark ink so it is visible on white canvas
+  ctx.strokeStyle = '#111827';
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -582,6 +624,7 @@ window.clearSignature = function() {
 window.prepareLoanApplication = function() {
   const submitBtn = document.getElementById('submitBtn');
   const termsCheckbox = document.getElementById('termsCheckbox');
+  const configuredStartDate = getConfiguredStartDate();
 
   if (!loanConfig.signature) {
     if (typeof showToast === 'function') {
@@ -601,7 +644,7 @@ window.prepareLoanApplication = function() {
     return;
   }
 
-  if (!loanConfig.startDate) {
+  if (!configuredStartDate) {
     if (typeof showToast === 'function') {
       showToast('Date Required', 'Please select a first repayment date to continue.', 'warning', 3000);
     } else {
@@ -616,13 +659,22 @@ window.prepareLoanApplication = function() {
   }
 
   const summary = getLoanSummary();
+  const firstPaymentDateIso = configuredStartDate ? toIsoDateMidnight(configuredStartDate) : null;
   const pendingLoanPayload = {
     amount: loanConfig.amount,
     period: loanConfig.period,
-    startDate: loanConfig.startDate?.toISOString(),
+    startDate: firstPaymentDateIso,
     interestRate: loanConfig.interestRate,
     signature: loanConfig.signature,
     summary,
+    offer_principal: Number(loanConfig.amount) || 0,
+    offer_interest_rate: Number((loanConfig.interestRate || 0) * 100).toFixed(2),
+    offer_total_interest: Number(summary.totalInterest) || 0,
+    offer_total_admin_fees: Number(summary.totalMonthlyFees) || 0,
+    offer_total_initiation_fees: Number(summary.totalInitiationFees) || 0,
+    offer_monthly_repayment: Number(summary.monthlyPayment) || 0,
+    offer_total_repayment: Number(summary.totalRepayment) || 0,
+    offer_credit_life_monthly: Number(summary.creditLifeMonthly) || 0,
     stagedAt: new Date().toISOString()
   };
 

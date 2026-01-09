@@ -1,5 +1,5 @@
 import { supabase } from '../services/supabaseClient.js';
-import { ensureThemeLoaded } from './theme.js';
+import { ensureThemeLoaded, getCompanyName, DEFAULT_SYSTEM_SETTINGS } from './theme.js';
 
 const appShell = document.getElementById('app-shell');
 let userProfile = null;
@@ -69,9 +69,10 @@ function renderAppShell(profile, role, theme = null) {
   const accentHex = theme?.primary_color || 'var(--color-primary)';
   const avatarBg = accentHex.replace('#', '') || 'ea580c';
   const avatarUrl = profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName.replace(' ', '+'))}&background=${avatarBg}&color=fff`;
+  const companyName = getCompanyName(theme) || DEFAULT_SYSTEM_SETTINGS.company_name;
   const customLogo = (theme?.company_logo_url || '').trim();
   const logoSrc = escapeAttr(customLogo || DEFAULT_BRAND_LOGO);
-  const logoAlt = customLogo ? 'Company logo' : 'Zwane Finance';
+  const logoAlt = escapeAttr(companyName || 'Company');
   const logoMarkup = logoSrc
     ? `<img src="${logoSrc}" alt="${logoAlt}" class="h-12 w-auto object-contain max-w-[200px]">`
     : `<div class="text-xl font-bold text-gray-800">${logoAlt}</div>`;

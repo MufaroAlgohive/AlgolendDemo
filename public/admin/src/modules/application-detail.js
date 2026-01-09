@@ -321,6 +321,31 @@ const downloadBlob = (content, filename, contentType) => {
   URL.revokeObjectURL(url);
 };
 
+// Helper to render base64 bureau data as a viewable PDF
+window.viewBureauReport = (base64Data) => {
+    try {
+        // Decode the base64 string provided by the bureau API
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        
+        // Create a Blob for the PDF
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        
+        // Open in a new tab for the original bureau view
+        window.open(url, '_blank');
+    } catch (error) {
+        console.error("PDF Render Error:", error);
+        alert("Unable to display the PDF format. Please ensure the bureau data is valid.");
+    }
+};
+
+//Toast Feedback
+
 const showFeedback = (message, type = 'success') => {
   const feedbackContainer = document.getElementById('feedback-container');
   if (!feedbackContainer) return;
@@ -836,36 +861,135 @@ const renderPersonalDetails = (profile, bankAccounts) => {
   }
 };
 
+const renderComplianceDetails = async (userId) => {
+    const container = document.getElementById('personal-tab');
+    if (!container || !userId) return;
+
+    // Fetch the declarations data for this specific user
+    const { data: decl } = await supabase
+        .from('declarations')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (!decl) return;
+
+    // Create the Compliance section
+    const complianceDiv = document.createElement('div');
+    complianceDiv.className = "mt-8 pt-8 border-t border-gray-100";
+    complianceDiv.innerHTML = `
+        <h4 class="text-md font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-file-shield text-gray-400"></i> Compliance & Statutory Data
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <p class="text-[10px] text-gray-400 uppercase font-bold">Marital Status</p>
+                <p class="text-sm font-semibold text-gray-700 capitalize">${decl.marital_status || 'Not Set'}</p>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <p class="text-[10px] text-gray-400 uppercase font-bold">Residential Status</p>
+                <p class="text-sm font-semibold text-gray-700 capitalize">${decl.home_ownership || 'Not Set'}</p>
+            </div>
+        </div>
+
+        ${decl.referral_provided ? `
+        <div class="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+            <p class="text-[10px] text-blue-400 uppercase font-bold mb-2">Referral Information</p>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div><span class="text-xs text-blue-600">Name:</span> <span class="text-sm font-bold text-blue-900">${decl.referral_name}</span></div>
+                <div><span class="text-xs text-blue-600">Phone:</span> <span class="text-sm font-bold text-blue-900">${decl.referral_phone}</span></div>
+            </div>
+        </div>` : ''}
+    `;
+    container.appendChild(complianceDiv);
+};
+
 const renderFinancials = (financials, creditChecks) => {
-  const fin = (financials && financials[0]) ? financials[0] : {};
-  document.getElementById('fin-income').textContent = formatCurrency(fin.monthly_income || 0);
-  document.getElementById('fin-expenses').textContent = formatCurrency(fin.monthly_expenses || 0);
+  // 1. Fetch Financial Profile Data
+  const profile = (financials && financials[0]) ? financials[0] : {};
+  const parsed = profile.parsed_data || { income: {}, expenses: {} };
+
+  // Update Primary Snapshot
+  document.getElementById('fin-income').textContent = formatCurrency(profile.monthly_income || 0);
+  document.getElementById('fin-expenses').textContent = formatCurrency(profile.monthly_expenses || 0);
   
   const creditContainer = document.getElementById('credit-check-content');
   const creditDate = document.getElementById('credit-date');
-  const xmlBtn = document.getElementById('btn-download-xml');
+  const reportBtn = document.getElementById('btn-download-xml'); // Repurposing ID
+  
   if (!creditContainer) return;
+
+  // --- NEW: Detailed Affordability Table (Step 3 Data) ---
+  // We inject this before the Credit Bureau section
+  let breakdownContainer = document.getElementById('affordability-breakdown-list');
+  if (!breakdownContainer) {
+      const grid = document.querySelector('#financial-tab .grid');
+      const div = document.createElement('div');
+      div.id = 'affordability-breakdown-list';
+      div.className = "mt-6 p-6 bg-gray-50 rounded-2xl border border-gray-200";
+      grid.after(div);
+      breakdownContainer = div;
+  }
+
+  breakdownContainer.innerHTML = `
+    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-list-check"></i> Monthly Budget Breakdown
+    </h4>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+        <div class="flex justify-between border-b border-gray-200 pb-1">
+            <span class="text-sm text-gray-500">Basic Salary (Net)</span>
+            <span class="text-sm font-bold text-gray-900">${formatCurrency(parsed.income.salary || 0)}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-200 pb-1">
+            <span class="text-sm text-gray-500">Housing / Rent</span>
+            <span class="text-sm font-bold text-gray-900">${formatCurrency(parsed.expenses.housing_rent || 0)}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-200 pb-1">
+            <span class="text-sm text-gray-500">Other Earnings</span>
+            <span class="text-sm font-bold text-gray-900">${formatCurrency(parsed.income.other_monthly_earnings || 0)}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-200 pb-1">
+            <span class="text-sm text-gray-500">School Fees</span>
+            <span class="text-sm font-bold text-gray-900">${formatCurrency(parsed.expenses.school || 0)}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-200 pb-1">
+            <span class="text-sm text-gray-500">Disposable Surplus</span>
+            <span class="text-sm font-bold text-brand-accent">${formatCurrency(profile.affordability_ratio || 0)}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-200 pb-1">
+            <span class="text-sm text-gray-500">Transport / Fuel</span>
+            <span class="text-sm font-bold text-gray-900">${formatCurrency(parsed.expenses.petrol || 0)}</span>
+        </div>
+    </div>
+  `;
   
   const latest = (creditChecks && creditChecks.length > 0) ? creditChecks[0] : null;
+
   if (latest) {
       const score = latest.credit_score || 0;
       const scoreColor = score > 600 ? 'text-green-600' : (score > 500 ? 'text-yellow-600' : 'text-red-600');
       if(creditDate) creditDate.textContent = `Checked on ${formatDate(latest.checked_at || latest.created_at || new Date())}`;
 
-      if (xmlBtn) {
-        if (latest.raw_xml_data) {
-            xmlBtn.classList.remove('hidden');
-            xmlBtn.onclick = () => downloadBlob(latest.raw_xml_data, `credit_report_${latest.id}.xml`, 'text/xml');
+      // --- BUREAU PDF LOGIC (Step 2 Data) ---
+      if (reportBtn) {
+        // Use raw_xml_data which stores the base64 string from Experian
+        const pdfData = latest.raw_xml_data; 
+
+        if (pdfData) {
+            reportBtn.classList.remove('hidden');
+            reportBtn.innerHTML = `<i class="fa-solid fa-file-pdf mr-2"></i> View Bureau Report`;
+            reportBtn.className = "text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors shadow-sm font-medium flex items-center gap-2";
+            reportBtn.onclick = () => window.viewBureauReport(pdfData); // Calling helper from Part 2
         } else {
-            xmlBtn.classList.add('hidden');
+            reportBtn.classList.add('hidden');
         }
       }
 
       creditContainer.innerHTML = `
         <div class="p-6 border-b border-gray-200 text-center bg-white">
             <div class="text-6xl font-extrabold ${scoreColor} mb-2 tracking-tighter">${score}</div>
-            <p class="font-bold text-gray-700 uppercase tracking-wide text-xs">Credit Score</p>
-            <span class="inline-block mt-2 px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">${latest.score_band || 'Unknown Band'}</span>
+            <p class="font-bold text-gray-700 uppercase tracking-wide text-xs">Bureau Score</p>
+            <span class="inline-block mt-2 px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">${latest.score_band || 'Standard'}</span>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6 bg-gray-50">
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
@@ -890,127 +1014,230 @@ const renderFinancials = (financials, creditChecks) => {
                 <span class="text-sm text-gray-500">Total Balance</span>
                 <span class="font-bold text-gray-900">${formatCurrency(latest.total_balance || 0)}</span>
             </div>
-            <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                <span class="text-sm text-gray-500">Monthly Instalments</span>
-                <span class="font-bold text-gray-900">${formatCurrency(latest.total_monthly_payment || 0)}</span>
-            </div>
-            <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                <span class="text-sm text-gray-500">Total Arrears</span>
-                <span class="font-bold text-red-600">${formatCurrency(latest.total_arrears_amount || 0)}</span>
-            </div>
             <div class="flex justify-between items-center">
                 <span class="text-sm text-gray-500">Judgment Value</span>
                 <span class="font-bold text-red-600">${formatCurrency(latest.total_judgment_amount || 0)}</span>
             </div>
         </div>
-        ${latest.risk_category ? `<div class="p-4 bg-red-50 text-red-700 text-xs font-medium text-center border-t border-red-100">Risk Category: ${latest.risk_category}</div>` : ''}
       `;
   } else {
       if(creditDate) creditDate.textContent = '';
-      if(xmlBtn) xmlBtn.classList.add('hidden');
-      creditContainer.innerHTML = `<div class="py-12 text-center text-gray-400"><p>No credit check data.</p></div>`;
+      if(reportBtn) reportBtn.classList.add('hidden');
+      creditContainer.innerHTML = `<div class="py-12 text-center text-gray-400"><p>No bureau data available.</p></div>`;
   }
 };
-
+/**
+ * Renders Document List with Admin Upload/Replace capability
+ */
 const renderDocuments = (docs) => {
   const docList = document.getElementById('documents-list');
   const docCount = document.getElementById('doc-count');
   if (!docList || !docCount) return;
 
-  let safeDocs = Array.isArray(docs) ? [...docs] : [];
+  // Standard document types expected from the wizard
+  const docTypes = [
+      { key: 'idcard', label: 'ID Document' }, 
+      { key: 'till_slip', label: 'Latest Payslip' }, 
+      { key: 'bank_statement', label: 'Bank Statement' }
+  ];
   
-  // Add Contract Signature if available
-  if (currentApplication?.offer_details?.signature_data) {
-      safeDocs.push({
-        file_name: 'Contract Signature.png',
-        file_type: 'digital_signature',
-        virtual_src: currentApplication.offer_details.signature_data,
-        uploaded_at: currentApplication.contract_signed_at || currentApplication.updated_at
-      });
-  }
-  
-  docCount.textContent = safeDocs.length;
+  docCount.textContent = docs?.length || 0;
   docList.innerHTML = '';
 
-  if (safeDocs.length === 0) {
-      docList.innerHTML = `<div class="text-center p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-300 text-gray-500">No documents found.</div>`;
-      return;
-  }
-
-  const typePriority = { 'digital_signature': 0, 'id_card_front': 1, 'id_card_back': 2, 'id_document': 3, 'bank_statement': 4, 'payslip': 5 };
-  safeDocs.sort((a, b) => (typePriority[a.file_type] || 99) - (typePriority[b.file_type] || 99));
-
-  safeDocs.forEach(doc => {
-      const name = doc.file_name || doc.name || 'Document';
-      const dateStr = doc.uploaded_at || new Date().toISOString();
-      const rawType = doc.file_type || 'document';
-      const prettyType = rawType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      const iconClass = rawType === 'digital_signature' ? 'fa-signature' : 'fa-file-pdf';
-      
-      // Determine if this is a virtual file (signature) or a storage file
-      const isVirtual = !!doc.virtual_src;
-      const storagePath = doc.file_path || doc.storage_path;
+  docTypes.forEach(type => {
+      // Check if a document of this type already exists
+      const existing = docs.find(d => d.file_type === type.key);
+      const statusColor = existing ? 'text-green-600 bg-green-100' : 'text-gray-400 bg-gray-100';
+      const icon = existing ? 'fa-check-circle' : 'fa-upload';
 
       const div = document.createElement('div');
-      div.className = 'flex items-center p-4 bg-white border border-gray-200 rounded-xl hover:shadow-md hover:border-orange-300 transition-all group';
+      div.className = 'flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:border-orange-300 transition-all group';
       
-      let actionButton = '';
-      
-      if (isVirtual) {
-          // Direct download for base64 signatures
-          actionButton = `<a href="${doc.virtual_src}" download="${name}" class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-orange-600 transition-all"><i class="fa-solid fa-download"></i></a>`;
-      } else if (storagePath) {
-          // SMART DOWNLOAD BUTTON for Storage Files
-          actionButton = `<button onclick="handleSmartDownload('${storagePath}')" class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-orange-600 transition-all cursor-pointer"><i class="fa-solid fa-download"></i></button>`;
-      } else {
-          actionButton = '<span class="text-xs text-red-400 font-bold">Missing File</span>';
-      }
-
       div.innerHTML = `
-        <div class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 mr-4"><i class="fa-solid ${iconClass} text-xl"></i></div>
-        <div class="flex-grow min-w-0">
-            <p class="text-sm font-bold text-gray-900 truncate">${name}</p>
-            <div class="flex items-center gap-2 mt-1">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase tracking-wider border border-gray-200">${prettyType}</span>
-                <span class="text-xs text-gray-300">|</span>
-                <p class="text-xs text-gray-500">${formatDate(dateStr)}</p>
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl ${statusColor} flex items-center justify-center">
+                <i class="fa-solid ${icon} text-xl"></i>
+            </div>
+            <div class="flex-grow min-w-0">
+                <p class="text-sm font-bold text-gray-900">${type.label}</p>
+                <p class="text-xs text-gray-500">${existing ? 'File Verified' : 'Missing Document'}</p>
             </div>
         </div>
-        ${actionButton}
+        <div class="flex items-center gap-2">
+            ${existing ? `
+            <button onclick="handleSmartDownload('${existing.file_path}')" class="w-10 h-10 rounded-full flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-all">
+                <i class="fa-solid fa-eye"></i>
+            </button>` : ''}
+            
+            <label class="cursor-pointer bg-gray-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-all">
+                ${existing ? 'Replace' : 'Upload'}
+                <input type="file" class="hidden admin-doc-upload" data-type="${type.key}" accept=".pdf,.jpg,.png,.jpeg">
+            </label>
+        </div>
       `;
       docList.appendChild(div);
   });
+
+  // Attach upload handlers to the new inputs
+  attachAdminUploadListeners();
 };
 
-window.handleSmartDownload = async (path) => {
+/**
+ * Handles the Admin Folder Strategy Uploads
+ */
+const attachAdminUploadListeners = () => {
+    document.querySelectorAll('.admin-doc-upload').forEach(input => {
+        input.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; 
+            if(!file || !currentApplication) return;
+            const type = e.target.dataset.type;
+            
+            const label = e.target.parentElement; 
+            const originalText = label.childNodes[0].textContent;
+            label.childNodes[0].textContent = 'Processing...';
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const adminId = session.user.id;
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${type}_${Date.now()}.${fileExt}`;
+                
+                // Upload to ADMIN folder (ID) using the Client ID in the filename
+                const filePath = `${adminId}/${currentApplication.user_id}_${fileName}`;
+                
+                // 1. Storage Upload
+                const { error: uploadError } = await supabase.storage
+                    .from('client_docs')
+                    .upload(filePath, file, { upsert: true });
+                
+                if (uploadError) throw uploadError;
+
+                // 2. Database Registration via RPC
+                const { error: dbError } = await supabase.rpc('register_admin_upload', {
+                    p_user_id: currentApplication.user_id,
+                    p_app_id: currentApplication.id,
+                    p_file_name: fileName,
+                    p_original_name: file.name,
+                    p_file_path: filePath,
+                    p_file_type: type,
+                    p_mime_type: file.type,
+                    p_file_size: file.size
+                });
+
+                if (dbError) throw dbError;
+                
+                showFeedback('Document Updated Successfully', 'success');
+                loadApplicationData(); // Refresh view
+                
+            } catch (err) { 
+                console.error(err);
+                showFeedback(err.message, 'error'); 
+            } finally {
+                label.childNodes[0].textContent = originalText;
+            }
+        });
+    });
+};
+
+window.handleSmartDownload = async (inputPath) => {
     try {
-        // 1. Try 'client_docs' bucket first (In-Branch)
+        // 1. Clean the path in case it's still a full URL
+        let cleanPath = inputPath;
+        if (inputPath.includes('/storage/v1/object/')) {
+            // Split after the bucket name to get the relative path
+            const parts = inputPath.split('/');
+            // Usually, the path starts after the 8th segment in Supabase storage URLs
+            cleanPath = parts.slice(8).join('/');
+        }
+
+        // 2. Try 'client_docs' bucket first (In-Branch Admin Folder strategy)
         let { data, error } = await supabase.storage
             .from('client_docs')
-            .createSignedUrl(path, 60);
+            .createSignedUrl(cleanPath, 60);
 
-        // 2. If not found, try 'documents' bucket (Online Apps)
-        if (error) {
+        // 3. Fallback: If not found, try the 'documents' bucket (User-uploaded files)
+        if (error || !data) {
              ({ data, error } = await supabase.storage
                 .from('documents')
-                .createSignedUrl(path, 60));
+                .createSignedUrl(cleanPath, 60));
         }
 
         if (error) throw error;
         
-        // Open the valid link
         window.open(data.signedUrl, '_blank');
 
     } catch (err) {
         console.error("Smart Download Error:", err);
-        alert("Unable to download file. It may have been deleted or moved.");
+        showFeedback("File not found in any bucket. Please check storage manually.", "error");
     }
 };
 
-const renderLoanHistory = (loans, appHistory, currentApp) => {
+/**
+ * Renders metadata and history for the Loan & History tab
+ */
+const renderLoanHistory = async (loans, appHistory, currentApp) => {
   const loanList = document.getElementById('loan-history-list');
   const appList = document.getElementById('app-history-list');
   
+  // --- 1. RESTORED: Admin Metadata Fetching via UUID ---
+  let adminSection = document.getElementById('admin-metadata-container');
+  if (currentApp) {
+      const container = document.getElementById('loan-tab');
+      
+      // Ensure container exists for injection
+      if (!adminSection) {
+          adminSection = document.createElement('div');
+          adminSection.id = 'admin-metadata-container';
+          adminSection.className = 'mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-8';
+          
+          // Policy: Inject above the "Client History" heading for accountability
+          const historyHeading = Array.from(container.querySelectorAll('h3')).find(h => h.textContent.includes('Client History'));
+          if (historyHeading) {
+              container.insertBefore(adminSection, historyHeading);
+          } else {
+              container.appendChild(adminSection);
+          }
+      }
+
+      try {
+          // Identify UUIDs for lookup
+          const adminIds = [currentApp.created_by_admin, currentApp.reviewed_by_admin].filter(Boolean);
+          
+          // Query the profiles table for names
+          const { data: admins } = await supabase
+              .from('profiles')
+              .select('id, full_name')
+              .in('id', adminIds);
+
+          const creatorName = admins?.find(a => a.id === currentApp.created_by_admin)?.full_name || 'System / User';
+          const reviewerName = admins?.find(a => a.id === currentApp.reviewed_by_admin)?.full_name || 'Pending Review';
+
+          adminSection.innerHTML = `
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p class="text-[10px] text-gray-400 uppercase font-black mb-2 tracking-widest">Created By</p>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-bold">
+                        ${creatorName.charAt(0)}
+                    </div>
+                    <span class="text-sm font-bold text-gray-800">${creatorName}</span>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p class="text-[10px] text-gray-400 uppercase font-black mb-2 tracking-widest">Reviewed By</p>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-600 font-bold">
+                        ${reviewerName.charAt(0)}
+                    </div>
+                    <span class="text-sm font-bold text-gray-800">${reviewerName}</span>
+                </div>
+            </div>
+          `;
+      } catch (err) {
+          console.error("Admin UUID Lookup Error:", err);
+      }
+  }
+
+  // --- 2. RENDER HISTORY LISTS ---
   if (loanList) {
       loanList.innerHTML = '';
       if (loans && loans.length > 0) {
@@ -1060,37 +1287,8 @@ const renderLoanHistory = (loans, appHistory, currentApp) => {
         appList.innerHTML = `<p class="text-sm text-gray-400 italic p-2">No other applications on record.</p>`;
       }
   }
-
-  // Render Admin Metadata (Created By / Reviewed By)
-  const adminSection = document.getElementById('admin-metadata-container');
-  if (!adminSection && currentApp) {
-      const container = document.getElementById('loan-tab');
-      const metaDiv = document.createElement('div');
-      metaDiv.id = 'admin-metadata-container';
-      metaDiv.className = 'mt-6 pt-6 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4';
-      
-      const creatorName = currentApp.creator?.full_name || 'System / User';
-      const reviewerName = currentApp.reviewer?.full_name || 'Pending Review';
-
-      metaDiv.innerHTML = `
-        <div class="bg-gray-50 p-3 rounded-lg">
-            <p class="text-xs text-gray-400 uppercase font-bold mb-1">Created By</p>
-            <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600"><i class="fa-solid fa-user"></i></div>
-                <span class="text-sm font-semibold text-gray-700">${creatorName}</span>
-            </div>
-        </div>
-        <div class="bg-gray-50 p-3 rounded-lg">
-            <p class="text-xs text-gray-400 uppercase font-bold mb-1">Reviewed By</p>
-            <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] text-blue-600"><i class="fa-solid fa-user-check"></i></div>
-                <span class="text-sm font-semibold text-gray-700">${reviewerName}</span>
-            </div>
-        </div>
-      `;
-      container.appendChild(metaDiv);
-  }
 };
+
 
 const renderSidePanel = (app) => {
   if (!app) return;
@@ -1099,65 +1297,110 @@ const renderSidePanel = (app) => {
   const alertEl = document.getElementById('status-alert');
   const actionsContainer = document.getElementById('action-buttons-container');
 
-  // --- FINANCIAL CALCULATIONS (Live) ---
+  // --- 1. CORE FINANCIAL LOGIC (Synchronized with Wizard) ---
+  const historyCount = app.loan_history?.length || 0;
   const principal = parseFloat(app.amount || 0);
   const term = parseInt(app.term_months || 1);
+  
+  // Get Offer Details for specific date and rate overrides
   const offer = app.offer_details || {};
-  const annualRate = offer.interest_rate ? parseFloat(offer.interest_rate) : 0.20;
-  const monthlyRate = annualRate / 12;
-  const monthlyInterest = principal * monthlyRate;
-  const monthlyFee = 60.00;
-  const totalMonthlyPayment = (principal/term) + monthlyInterest + monthlyFee;
-  const totalInterest = monthlyInterest * term;
-  const totalRepayment = totalMonthlyPayment * term;
+  
+  // Constants from Business Logic
+  const MONTHLY_FEE = 60.00;
+  const INITIATION_FEE_RATE = 0.15; 
+  
+  // Tiered Interest: 20% for first 3 loans, 18% thereafter
+  const totalAnnualRate = (historyCount < 3) ? 0.20 : 0.18;
+  const interestPortionRate = totalAnnualRate - INITIATION_FEE_RATE; 
 
+  // Calculations
+  const totalInterest = principal * interestPortionRate * (term / 12);
+  const totalInitiationFees = (principal * INITIATION_FEE_RATE) * term;
+  const totalMonthlyFees = MONTHLY_FEE * term;
+  
+  const totalRepayment = principal + totalInterest + totalMonthlyFees + totalInitiationFees;
+  const monthlyPayment = totalRepayment / term;
+
+  // --- 2. FETCH FIRST REPAYMENT DATE (Refined) ---
+  // Priority 1: offer_details.first_payment_date
+  // Priority 2: app.repayment_start_date
+  const scheduledDate = offer.first_payment_date || app.repayment_start_date;
+
+  // --- 3. UPDATE PRIMARY SIDEBAR FIELDS ---
   document.getElementById('sidebar-amount').textContent = formatCurrency(principal);
-  document.getElementById('sidebar-term').textContent = `${term} Months`;
-  document.getElementById('sidebar-payment').textContent = formatCurrency(totalMonthlyPayment);
+  document.getElementById('sidebar-term').textContent = `${term} Month${term > 1 ? 's' : ''}`;
+  document.getElementById('sidebar-payment').textContent = formatCurrency(monthlyPayment);
 
-  // Inject Financial Breakdown
-  const breakdown = document.getElementById('financial-breakdown');
-  if(!breakdown) {
-      // Create it if missing (inserted dynamically after sidebar-payment block)
+  // --- 4. INJECT DETAILED BREAKDOWN & REPAYMENT INFO ---
+  let breakdown = document.getElementById('financial-breakdown');
+  if (!breakdown) {
       const paymentBlock = document.getElementById('sidebar-payment').parentElement.parentElement;
-      const div = document.createElement('div');
-      div.id = 'financial-breakdown';
-      div.className = "pt-4 border-t border-gray-100 space-y-4";
-      paymentBlock.after(div);
+      breakdown = document.createElement('div');
+      breakdown.id = 'financial-breakdown';
+      breakdown.className = "pt-4 border-t border-gray-100 space-y-4";
+      paymentBlock.after(breakdown);
   }
-  document.getElementById('financial-breakdown').innerHTML = `
-    <div><label class="text-xs text-gray-500 uppercase font-bold tracking-wider">Interest Rate</label><div class="font-bold text-gray-900">${(annualRate * 100).toFixed(0)}%</div></div>
-    <div><label class="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Interest</label><div class="font-bold text-orange-600">${formatCurrency(totalInterest)}</div></div>
-    <div><label class="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Repayment</label><div class="font-bold text-gray-900">${formatCurrency(totalRepayment)}</div></div>
+
+  breakdown.innerHTML = `
+    <div class="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <div class="flex justify-between items-center text-xs">
+            <span class="text-gray-500">Tiered Interest (${(interestPortionRate * 100).toFixed(1)}%)</span>
+            <span class="font-bold text-gray-900">${formatCurrency(totalInterest)}</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+            <span class="text-gray-500">Initiation Fee (15%)</span>
+            <span class="font-bold text-gray-900">${formatCurrency(totalInitiationFees)}</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+            <span class="text-gray-500">Monthly Service Fee</span>
+            <span class="font-bold text-gray-900">${formatCurrency(totalMonthlyFees)}</span>
+        </div>
+        <div class="pt-2 border-t border-gray-200 flex justify-between items-center">
+            <span class="text-xs font-black uppercase text-gray-700">Total Repayable</span>
+            <span class="text-sm font-black text-green-600">${formatCurrency(totalRepayment)}</span>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <label class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1 block">Scheduled Payout Info</label>
+        <div class="p-3 bg-orange-50 border border-orange-100 rounded-xl">
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-orange-800 font-medium">First Repayment:</span>
+                <span class="text-xs font-bold text-orange-900">
+                    ${scheduledDate ? formatDate(scheduledDate) : 'Not Scheduled'}
+                </span>
+            </div>
+        </div>
+    </div>
   `;
 
+  // --- 5. STATUS BADGE & MANUAL OVERRIDE (Keep existing functionality) ---
   if (statusEl) {
       statusEl.textContent = status.replace('_', ' ');
       statusEl.className = `mt-2 text-lg font-bold uppercase tracking-wide ${getBadgeColor(status).split(' ')[0].replace('bg-', 'text-').replace('-100', '-600')}`;
   }
 
-  // Update status dropdown
   const statusSelect = document.getElementById('status-override-select');
-  if(statusSelect) statusSelect.value = status;
+  if (statusSelect) statusSelect.value = status;
 
-  // --- VISUAL LOCKING LOGIC ---
   const manualSelect = document.getElementById('status-override-select');
   const manualBtn = document.getElementById('manual-update-btn');
   const hint = document.getElementById('override-hint');
   
   if (status === 'DISBURSED') {
-      if(manualSelect) manualSelect.disabled = true;
-      if(manualBtn) {
+      if (manualSelect) manualSelect.disabled = true;
+      if (manualBtn) {
           manualBtn.disabled = true;
           manualBtn.classList.add('opacity-50', 'cursor-not-allowed');
           manualBtn.innerText = "Locked";
       }
-      if(hint) hint.textContent = "🔒 Application is active. Modifications disabled.";
+      if (hint) hint.textContent = "🔒 Application is active. Modifications disabled.";
   } else {
-      if(manualSelect) { manualSelect.disabled = false; manualSelect.value = status; }
-      if(manualBtn) { manualBtn.disabled = false; manualBtn.innerText = "Update"; }
+      if (manualSelect) { manualSelect.disabled = false; manualSelect.value = status; }
+      if (manualBtn) { manualBtn.disabled = false; manualBtn.innerText = "Update"; }
   }
 
+  // --- 5. ALERTS & DYNAMIC ACTION BUTTONS ---
   if (alertEl) {
       alertEl.className = 'mt-3 p-3 rounded-lg text-xs font-medium leading-relaxed hidden';
       if (status === 'OFFERED') {
@@ -1172,13 +1415,10 @@ const renderSidePanel = (app) => {
       }
   }
 
-  // --- DYNAMIC ACTION BUTTONS ---
   if (actionsContainer) {
       actionsContainer.innerHTML = '';
 
-      // 1. ASSESSMENT PHASE
       if (['BUREAU_OK', 'BANK_LINKING', 'STARTED', 'AFFORD_REFER', 'BUREAU_REFER'].includes(status)) {
-          
           const referMessage = (status === 'AFFORD_REFER' || status === 'BUREAU_REFER') 
             ? `<div class="p-3 bg-orange-50 border border-orange-100 rounded-lg mb-3 text-xs text-orange-700 font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> Currently Under Manual Review</div>` 
             : '';
@@ -1187,15 +1427,10 @@ const renderSidePanel = (app) => {
             ${referMessage}
             <h4 class="text-xs font-bold text-gray-400 uppercase mb-2">Assessment</h4>
             <button onclick="updateStatus('AFFORD_OK')" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl mb-2 shadow-lg"><i class="fa-solid fa-check-circle mr-2"></i> Confirm Affordability</button>
-            
-            ${!status.includes('REFER') ? 
-            `<button onclick="updateStatus('AFFORD_REFER')" class="w-full py-3 bg-white border border-orange-200 text-orange-600 text-sm font-bold rounded-xl mb-2"><i class="fa-solid fa-magnifying-glass mr-2"></i> Refer</button>` 
-            : ''}
-            
+            ${!status.includes('REFER') ? `<button onclick="updateStatus('AFFORD_REFER')" class="w-full py-3 bg-white border border-orange-200 text-orange-600 text-sm font-bold rounded-xl mb-2"><i class="fa-solid fa-magnifying-glass mr-2"></i> Refer</button>` : ''}
             <button onclick="updateStatus('DECLINED')" class="w-full py-3 bg-white border border-red-200 text-red-600 text-sm font-bold rounded-xl"><i class="fa-solid fa-xmark mr-2"></i> Decline</button>
           `;
       } 
-      // 2. CONTRACT PHASE
       else if (status === 'AFFORD_OK') {
           actionsContainer.innerHTML = `
             <div class="p-3 bg-blue-50 border border-blue-100 rounded-lg mb-3 text-xs text-blue-700">Client passed assessment. Ready for Contract.</div>
@@ -1205,19 +1440,15 @@ const renderSidePanel = (app) => {
           document.getElementById('action-send-contract')?.addEventListener('click', (event) => handleSendContract(event.currentTarget));
           document.getElementById('action-preview-contract')?.addEventListener('click', handlePreviewContract);
       }
-      // 3. LOCKED PHASE (Waiting for User)
       else if (status === 'OFFERED') {
           actionsContainer.innerHTML = `
             <div class="flex flex-col items-center justify-center p-6 bg-gray-50 border border-gray-200 rounded-xl text-center">
-                <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 mb-2">
-                    <i class="fa-solid fa-clock"></i>
-                </div>
+                <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 mb-2"><i class="fa-solid fa-clock"></i></div>
                 <p class="text-sm font-bold text-gray-800">Waiting for Client</p>
                 <p class="text-xs text-gray-500 mt-1">Contract sent. Actions locked until client signs.</p>
             </div>
           `;
       }
-      // 4. APPROVAL PHASE (Client Signed)
       else if (status === 'OFFER_ACCEPTED') {
           actionsContainer.innerHTML = `
              <div class="p-3 bg-purple-50 border border-purple-100 rounded-lg mb-3 text-xs text-purple-700"><i class="fa-solid fa-signature mr-1"></i> Client Signed.</div>
@@ -1225,22 +1456,18 @@ const renderSidePanel = (app) => {
           `;
           document.getElementById('btn-approve-contract').onclick = () => openModal('Approve', 'Mark contract as valid and ready for payout?', approveApplication);
       }
-      // 5. DISBURSEMENT PHASE
       else if (status === 'READY_TO_DISBURSE') {
           actionsContainer.innerHTML = `<div class="p-4 bg-green-50 border border-green-100 rounded-xl text-center"><p class="text-sm font-bold text-green-800">Queued for Payout</p></div>`;
       }
-      // 6. RE-OFFER PHASE (Client Declined)
       else if (status === 'DECLINED') {
           actionsContainer.innerHTML = `
             <div class="p-3 bg-red-50 border border-red-100 rounded-lg mb-3 text-xs text-red-700"><i class="fa-solid fa-circle-xmark mr-1"></i> Application Declined</div>
             <button onclick="updateStatus('AFFORD_OK')" class="w-full py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-bold rounded-xl shadow-sm"><i class="fa-solid fa-rotate-right mr-2"></i> Draft New Offer</button>
           `;
       }
-      // 7. AUTOMATED PHASE (Bureau)
       else if (status.includes('BUREAU')) {
           actionsContainer.innerHTML = `<div class="p-4 bg-blue-50 border border-blue-100 rounded-xl text-center"><p class="text-sm font-bold text-blue-800"><i class="fa-solid fa-robot mr-2"></i> System Processing</p></div>`;
       }
-      // 8. DISBURSED
       else if (status === 'DISBURSED') {
           actionsContainer.innerHTML = `<div class="p-4 bg-gray-50 border border-gray-100 rounded-xl text-center"><p class="text-sm font-bold text-gray-600">Loan Active / Completed</p></div>`;
       }
@@ -1274,27 +1501,39 @@ const loadApplicationData = async () => {
   try {
       const data = await fetchApplicationDetail(appId);
       currentApplication = data;
-      originalStatusBeforeDecline = null;
-      isContractDeclinedUI = false;
-      stopContractStatusPolling();
-      hasAutoAdvancedToSigned = ['OFFER_ACCEPTED', 'READY_TO_DISBURSE', 'DISBURSED'].includes(data.status);
+      
+      // 1. Reset UI States
+      stopContractStatusPolling(); 
       document.getElementById('contract-declined-banner')?.remove();
+
+      // 2. Trigger Specialized Rendering Sections
       renderHeader(data);
       renderPersonalDetails(data.profiles || {}, data.bank_accounts);
-      renderFinancials(data.financial_profiles, data.credit_checks);
-      renderDocuments(data.documents);
-      renderLoanHistory(data.loan_history, data.application_history, data);
-      renderSidePanel(data);
-      // Initialize DocuSeal card
+      
+      // Part 4a: Compliance & Declarations (Step 4)
+      await renderComplianceDetails(data.user_id); 
+
+      // Part 3: Financials & Bureau PDF (Steps 2 & 3)
+      renderFinancials(data.financial_profiles, data.credit_checks); 
+
+      // Part 4b: Documents with Admin Replacement (Step 6)
+      renderDocuments(data.documents); 
+      
+      await renderLoanHistory(data.loan_history, data.application_history, data);
+      // Part 1: Side Panel with Tiered Rates (Step 5)
+      renderSidePanel(data); 
+
+      // 3. Initialize Signatures & Visibility
       await initDocuSealCard();
       document.getElementById('loading-state')?.classList.add('hidden');
       document.getElementById('content-grid')?.classList.remove('hidden');
       document.getElementById('page-header')?.classList.remove('hidden');
+
   } catch (error) {
-      console.error(error);
+      console.error("Integration Error:", error);
+      showFeedback("Failed to load full application data.", "error");
   }
 };
-
 document.addEventListener('DOMContentLoaded', async () => {
   await initLayout();
   let mainContent = document.getElementById('main-content');

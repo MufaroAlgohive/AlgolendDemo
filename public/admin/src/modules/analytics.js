@@ -1,6 +1,62 @@
 import { initLayout } from '../shared/layout.js';
 import { formatCurrency } from '../shared/utils.js';
-import { fetchAnalyticsData } from '../services/dataService.js';
+import { fetchAnalyticsData, DEFAULT_SYSTEM_SETTINGS } from '../services/dataService.js';
+import { getCachedTheme, getCompanyName } from '../shared/theme.js';
+
+const escapeHtml = (value = '') => `${value}`
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const getBrandName = () => getCompanyName(getCachedTheme()) || DEFAULT_SYSTEM_SETTINGS.company_name;
+
+const getBrandSlug = () => {
+    const slug = (getBrandName() || 'Company')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 60);
+    return slug || 'company';
+};
+
+/**
+ * HARDCODED EXCEL ENGINE (No External Dependencies)
+ * Implements the specific XLSX methods required by this file's export logic.
+ */
+window.XLSX = {
+    utils: {
+        json_to_sheet: (data) => data,
+        book_new: () => ({ Sheets: {}, SheetNames: [] }),
+        book_append_sheet: (wb, ws, name) => {
+            wb.Sheets[name] = ws;
+            wb.SheetNames.push(name);
+        }
+    },
+    writeFile: (wb, filename) => {
+        const sheetName = wb.SheetNames[0];
+        const data = wb.Sheets[sheetName];
+        if (!data || data.length === 0) return;
+
+        const headers = Object.keys(data[0]);
+        const csvContent = [
+            headers.join(","),
+            ...data.map(row => headers.map(header => {
+                const cell = row[header] === null || row[header] === undefined ? "" : row[header];
+                return typeof cell === 'string' ? `"${cell.replace(/"/g, '""')}"` : cell;
+            }).join(","))
+        ].join("\n");
+
+        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename.replace(".xlsx", ".csv")); // Ensures compatibility across all Excel versions
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
 
 // --- STATE MANAGEMENT ---
 let appState = {
@@ -9,65 +65,135 @@ let appState = {
     filterArrears: false,
     sortMode: 'month_desc',
     hiddenRows: new Set(),
-    flaggedRows: new Set()
+    flaggedRows: new Set(),
+    exportPeriod: 'all' 
 };
 
 // --- HELPER FUNCTIONS ---
 const getRowId = (row) => `${row.loan_id}-${row.month}`;
 
+// --- EXCEL EXPORT ---
+function exportAnalyticsToExcel() {
+    if (typeof XLSX === 'undefined') return alert("Excel library not loaded.");
+    const data = appState.processedData.map(row => ({
+        "Loan ID": row.loan_id,
+        "Customer": row.customer || 'N/A',
+        "Statement Period": row.month,
+        "Principal (ZAR)": parseFloat(row.principal_outstanding || 0),
+        "Interest (ZAR)": parseFloat(row.interest_receivable || 0),
+        "Fees (ZAR)": parseFloat(row.fee_receivable || 0),
+        "Arrears (ZAR)": parseFloat(row.arrears_amount || 0)
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Analytics");
+    XLSX.writeFile(wb, `${getBrandSlug()}_Analytics_${appState.exportPeriod}.xlsx`);
+}
+
 // --- HTML TEMPLATE ---
+const companyNameHtml = escapeHtml(getBrandName());
+
 const pageTemplate = `
     <div class="flex flex-col space-y-6">
-        <div class="flex justify-between items-end">
+        <style>
+            /* UI PRIVACY: Hides sidebar and nav ONLY during print/export */
+            @media print {
+                @page { size: landscape; margin: 10mm; }
+                body { background: white !important; }
+                nav, aside, header, .hamburger, .sidebar, .notification-bell, .user-profile, 
+                .rounded-full, .print\\:hidden, #searchInput, .period-tab-container, .hide-btn, .flag-btn { 
+                    display: none !important; 
+                }
+                table { width: 100% !important; border-collapse: collapse !important; font-size: 10px !important; }
+                th, td { border: 1px solid #e5e7eb !important; padding: 6px !important; }
+            }
+
+            /* FIXED TOTALS ROW & HEADER */
+            .sticky-header { position: sticky; top: 0; z-index: 30; }
+            .sticky-totals { position: sticky; top: 41px; z-index: 25; background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+        </style>
+
+        <div class="hidden print:flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-4">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Revenue Analytics</h1>
-                <p class="text-sm text-gray-500 mt-1">Monthly Balance Sheet & Amortisation Report</p>
+                <h1 class="text-2xl font-bold text-gray-900">${companyNameHtml}</h1>
+                <p class="text-sm text-gray-500 uppercase font-semibold">Revenue Analytics Report</p>
             </div>
-            <div class="flex gap-3">
-                <button onclick="window.print()" class="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm">
-                    <i class="fa-solid fa-download mr-2"></i> Export Report
-                </button>
+            <div class="text-right">
+                <p class="text-sm font-bold">Generated: ${new Date().toLocaleDateString('en-GB')}</p>
             </div>
         </div>
 
-        <div class="bg-white p-2 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div class="relative w-full md:w-96">
-                <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                <input type="text" id="searchInput" placeholder="Search by name or Loan ID..." class="w-full pl-10 pr-4 py-2 text-sm border-none bg-gray-50 rounded-lg focus:ring-2 focus:ring-brand-accent/20 outline-none transition-all placeholder-gray-400">
+        <div class="flex flex-col md:flex-row justify-between items-end border-b border-gray-200 pb-6 gap-4 print:hidden">
+            <div>
+                <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Revenue Analytics</h1>
+                <p class="text-sm text-gray-500 mt-2">Portfolio Revenue & Amortisation Statement</p>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div class="bg-gray-100 p-1 rounded-lg flex space-x-1 period-tab-container">
+                    <button id="tab-current_month" class="period-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all text-gray-500">1M</button>
+                    <button id="tab-last_3_months" class="period-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all text-gray-500">3M</button>
+                    <button id="tab-ytd" class="period-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all text-gray-500">YTD</button>
+                    <button id="tab-all" class="period-tab px-3 py-1.5 text-xs font-medium rounded-md transition-all bg-white text-blue-600 shadow-sm">ALL</button>
+                </div>
+
+                <div class="relative group">
+                    <button class="flex items-center px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 shadow-md">
+                        <i class="fa-solid fa-file-export mr-2"></i> Export <i class="fa-solid fa-chevron-down ml-2 text-xs opacity-70"></i>
+                    </button>
+                    <div class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
+                        <button id="printPdfBtn" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center border-b border-gray-100">
+                            <i class="fa-solid fa-file-pdf mr-3 text-red-500"></i> Save as PDF
+                        </button>
+                        <button id="exportExcelBtn" class="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center">
+                            <i class="fa-solid fa-file-excel mr-3 text-green-600"></i> Download Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center print:hidden">
+            <div class="flex items-center gap-4 w-full md:w-auto">
+                <div class="relative w-full md:w-96">
+                    <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="searchInput" placeholder="Search customer or loan ID..." class="w-full pl-10 pr-4 py-2 text-sm border-none bg-gray-50 rounded-lg outline-none">
+                </div>
+                <button id="resetViewBtn" class="hidden items-center px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all whitespace-nowrap">
+                    <i class="fa-solid fa-rotate-left mr-2"></i> Reset View
+                </button>
             </div>
             
             <div class="flex items-center gap-2">
-                <button id="filterBtn" class="flex items-center px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 whitespace-nowrap transition-colors">
+                <button id="filterBtn" class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                     <i class="fa-solid fa-filter mr-2"></i> <span>Filter: All</span>
                 </button>
-                <button id="sortBtn" class="flex items-center px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 whitespace-nowrap transition-colors">
+                <button id="sortBtn" class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                     <i class="fa-solid fa-sort mr-2"></i> <span>Sort: Date (Newest)</span>
                 </button>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
-            <div class="overflow-x-auto max-h-[75vh]">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative print:border-none">
+            <div class="overflow-x-auto max-h-[75vh] print:max-h-none print:overflow-visible">
                 <table class="w-full text-sm text-left relative border-collapse">
-                    <thead class="bg-gray-50 text-gray-500 font-semibold text-xs border-b border-gray-200 uppercase tracking-wider sticky top-0 z-20 shadow-sm">
+                    <thead class="bg-gray-50 text-gray-500 font-semibold text-[11px] border-b border-gray-200 uppercase sticky-header shadow-sm print:static">
                         <tr>
-                            <th class="pl-6 py-4 font-medium bg-gray-50">Loan ID</th>
-                            <th class="px-4 py-4 font-medium bg-gray-50">Customer</th>
-                            <th class="px-4 py-4 font-medium bg-gray-50">Month</th>
-                            <th class="px-4 py-4 font-medium text-right bg-gray-50">Principal Out.</th>
-                            <th class="px-4 py-4 font-medium text-right bg-gray-50">Int. Receivable</th>
-                            <th class="px-4 py-4 font-medium text-right bg-gray-50">Fee Receivable</th>
-                            <th class="px-4 py-4 font-medium text-right bg-gray-50">Arrears</th>
-                            <th class="px-4 py-4 font-medium text-center bg-gray-50">Actions</th>
+                            <th class="pl-6 py-4 bg-gray-50">Loan ID</th>
+                            <th class="px-4 py-4 bg-gray-50">Customer</th>
+                            <th class="px-4 py-4 bg-gray-50">Month</th>
+                            <th class="px-4 py-4 text-right bg-gray-50">Principal</th>
+                            <th class="px-4 py-4 text-right bg-gray-50">Interest</th>
+                            <th class="px-4 py-4 text-right bg-gray-50">Fees</th>
+                            <th class="px-4 py-4 text-right bg-gray-50">Arrears</th>
+                            <th class="px-4 py-4 text-center bg-gray-50 print:hidden">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="analytics-table-body" class="divide-y divide-gray-100 bg-white">
                         <tr>
-                            <td colspan="8" class="text-center py-12 text-gray-400">
-                                <div class="flex flex-col items-center">
-                                    <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-3 text-brand-accent"></i>
-                                    <span>Loading Financial Data...</span>
-                                </div>
+                            <td colspan="8" class="text-center py-20 text-gray-400">
+                                <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-600"></i>
+                                <p class="mt-2">Initializing Financial Data...</p>
                             </td>
                         </tr>
                     </tbody>
@@ -77,10 +203,36 @@ const pageTemplate = `
     </div>
 `;
 
+// --- DATA PROCESSING ---
+function switchAnalyticsTab(period) {
+    appState.exportPeriod = period;
+    document.querySelectorAll('.period-tab').forEach(btn => {
+        btn.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+        btn.classList.add('text-gray-500');
+    });
+    const active = document.getElementById(`tab-${period}`);
+    if(active) {
+        active.classList.remove('text-gray-500');
+        active.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+    }
+    processData(document.getElementById('searchInput')?.value);
+}
+
 function processData(searchTerm = '') {
     let data = [...appState.rawData];
+    const now = new Date();
 
-    // 1. Search Filter
+    if (appState.exportPeriod !== 'all') {
+        data = data.filter(row => {
+            const [year, month] = row.month.split('-').map(Number);
+            const rowDate = new Date(year, month - 1, 1);
+            if (appState.exportPeriod === 'current_month') return rowDate.getMonth() === now.getMonth() && rowDate.getFullYear() === now.getFullYear();
+            if (appState.exportPeriod === 'last_3_months') return rowDate >= new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            if (appState.exportPeriod === 'ytd') return year === now.getFullYear();
+            return true;
+        });
+    }
+
     if (searchTerm) {
         const term = searchTerm.toLowerCase();
         data = data.filter(row => 
@@ -89,12 +241,10 @@ function processData(searchTerm = '') {
         );
     }
 
-    // 2. Arrears Filter
     if (appState.filterArrears) {
         data = data.filter(row => parseFloat(row.arrears_amount) > 0);
     }
 
-    // 3. Sorting
     data.sort((a, b) => {
         switch (appState.sortMode) {
             case 'month_desc': return b.month.localeCompare(a.month);
@@ -112,229 +262,168 @@ function processData(searchTerm = '') {
 function renderTable() {
     const tableBody = document.getElementById('analytics-table-body');
     const data = appState.processedData;
+    const resetBtn = document.getElementById('resetViewBtn');
 
-    if (!data || data.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-gray-400">No records found matching your filters.</td></tr>`;
+    if (!data.length) {
+        tableBody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-gray-400">No records found.</td></tr>`;
         return;
     }
 
-    // Calculate Totals
-    const totals = data.reduce((acc, row) => {
-        // NOTE: We do NOT skip hidden rows in totals calculation
-        acc.principal += parseFloat(row.principal_outstanding || 0);
-        acc.interest += parseFloat(row.interest_receivable || 0);
-        acc.fees += parseFloat(row.fee_receivable || 0);
-        acc.arrears += parseFloat(row.arrears_amount || 0);
-        return acc;
-    }, { principal: 0, interest: 0, fees: 0, arrears: 0, count: data.length });
+    if (appState.hiddenRows.size > 0 || appState.flaggedRows.size > 0) {
+        resetBtn?.classList.remove('hidden');
+        resetBtn?.classList.add('flex');
+    } else {
+        resetBtn?.classList.add('hidden');
+    }
 
-    const totalsHTML = renderTotalsRow(totals);
-    const rowsHTML = data.map(row => renderRow(row)).join('');
-    
-    tableBody.innerHTML = totalsHTML + rowsHTML;
+    let visibleData = data.filter(row => !appState.hiddenRows.has(getRowId(row)));
+
+    const isHighlightActive = appState.flaggedRows.size > 0;
+    if (isHighlightActive) {
+        visibleData = visibleData.filter(row => appState.flaggedRows.has(getRowId(row)));
+    }
+
+    const totals = visibleData.reduce((acc, row) => {
+        acc.p += parseFloat(row.principal_outstanding || 0);
+        acc.i += parseFloat(row.interest_receivable || 0);
+        acc.f += parseFloat(row.fee_receivable || 0);
+        acc.a += parseFloat(row.arrears_amount || 0);
+        return acc;
+    }, { p: 0, i: 0, f: 0, a: 0, count: visibleData.length });
+
+    const totalLabel = isHighlightActive ? "HIGHLIGHTED TOTALS" : "VISIBLE TOTALS";
+    const labelColor = isHighlightActive ? "text-orange-600" : "text-gray-900";
+
+    const totalsHTML = `
+        <tr class="bg-gray-50 font-bold border-b-2 border-gray-200 sticky-totals shadow-sm print:static">
+            <td class="pl-6 py-4 text-xs uppercase ${labelColor}">${totalLabel}</td>
+            <td class="px-4 py-4 text-xs text-gray-500">${totals.count} Items</td>
+            <td></td>
+            <td class="px-4 py-4 text-right text-gray-900">${formatCurrency(totals.p)}</td>
+            <td class="px-4 py-4 text-right text-gray-900">${formatCurrency(totals.i)}</td>
+            <td class="px-4 py-4 text-right text-blue-700">${formatCurrency(totals.f)}</td>
+            <td class="px-4 py-4 text-right text-red-600">${formatCurrency(totals.a)}</td>
+            <td class="print:hidden"></td>
+        </tr>`;
+
+    tableBody.innerHTML = totalsHTML + data.map(row => renderRow(row)).join('');
     attachRowListeners();
 }
-
-// FIX: top-[52px] ensures it sits UNDER the table header
-const renderTotalsRow = (totals) => `
-    <tr class="bg-gray-50 border-b-2 border-gray-200 sticky top-[52px] z-10 shadow-sm font-bold">
-        <td class="pl-6 py-4 font-extrabold text-gray-900 text-xs uppercase tracking-wider">TOTALS</td>
-        <td class="px-4 py-4 font-bold text-gray-500 text-xs uppercase tracking-wider">${totals.count} Records</td>
-        <td class="px-4 py-4"></td>
-        <td class="px-4 py-4 text-right font-extrabold text-gray-900 text-base border-l border-gray-200">${formatCurrency(totals.principal)}</td>
-        <td class="px-4 py-4 text-right font-extrabold text-gray-900 text-base border-l border-gray-200">${formatCurrency(totals.interest)}</td>
-        <td class="px-4 py-4 text-right font-extrabold text-blue-700 text-base border-l border-gray-200">${formatCurrency(totals.fees)}</td>
-        <td class="px-4 py-4 text-right font-extrabold text-red-600 text-base border-l border-gray-200">${formatCurrency(totals.arrears)}</td>
-        <td class="px-4 py-4"></td>
-    </tr>
-`;
 
 const renderRow = (row) => {
     const rowId = getRowId(row);
     const isHidden = appState.hiddenRows.has(rowId);
     const isFlagged = appState.flaggedRows.has(rowId);
-    
-    // Safety check for Name
-    const customerName = row.customer || 'N/A';
-    const initial = String(customerName).charAt(0).toUpperCase();
     const arrearsClass = parseFloat(row.arrears_amount) > 0 ? 'text-red-600 font-bold' : 'text-gray-400';
-    const safeLoanId = String(row.loan_id || '').replace('Loan #', '#');
 
-    // === STYLE LOGIC ===
-    let rowClasses = 'transition-colors group border-b border-gray-50';
-    
-    if (isHidden) {
-        // Disabled Look: Faded, Grayscale
-        rowClasses += ' bg-gray-50 opacity-40 grayscale';
-    } else if (isFlagged) {
-        // Highlight Look: Yellow Background, Orange Border
-        rowClasses += ' bg-yellow-50 border-l-4 border-l-orange-400';
-    } else {
-        // Normal Look
-        rowClasses += ' hover:bg-gray-50';
-    }
-
-    const eyeIcon = isHidden ? 'fa-solid fa-eye text-gray-600' : 'fa-regular fa-eye-slash text-gray-400';
-    const flagIcon = isFlagged ? 'fa-solid fa-flag text-orange-600' : 'fa-regular fa-flag text-gray-400 hover:text-orange-500';
+    let rowClasses = 'border-b border-gray-50 transition-colors group';
+    if (isHidden) rowClasses += ' bg-gray-50 opacity-40 grayscale';
+    else if (isFlagged) rowClasses += ' bg-yellow-50 border-l-4 border-l-orange-400';
+    else rowClasses += ' hover:bg-gray-50';
 
     return `
         <tr class="${rowClasses}">
-            <td class="pl-6 py-4 font-medium text-gray-900">${safeLoanId}</td>
-            <td class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-100">
-                        ${initial}
-                    </div>
-                    <span class="font-medium text-gray-700">${customerName}</span>
-                </div>
-            </td>
+            <td class="pl-6 py-4 font-medium text-gray-900">${row.loan_id}</td>
+            <td class="px-4 py-4 text-gray-700 font-medium">${row.customer || 'N/A'}</td>
             <td class="px-4 py-4 text-gray-500 font-mono text-xs">${row.month}</td>
-            <td class="px-4 py-4 text-right font-medium text-gray-700">${formatCurrency(row.principal_outstanding)}</td>
+            <td class="px-4 py-4 text-right text-gray-700">${formatCurrency(row.principal_outstanding)}</td>
             <td class="px-4 py-4 text-right text-gray-600">${formatCurrency(row.interest_receivable)}</td>
             <td class="px-4 py-4 text-right text-blue-600 font-medium">${formatCurrency(row.fee_receivable)}</td>
-            <td class="px-4 py-4 text-right ${arrearsClass}">${parseFloat(row.arrears_amount) > 0 ? formatCurrency(row.arrears_amount) : '-'}</td>
-            <td class="px-4 py-4 text-center">
-                <div class="flex items-center justify-center gap-3">
-                    <button class="hide-btn p-1.5 hover:bg-gray-200 rounded-md transition-colors" data-id="${rowId}" title="${isHidden ? 'Show' : 'Hide'}">
-                        <i class="${eyeIcon}"></i>
+            <td class="px-4 py-4 text-right ${arrearsClass}">${formatCurrency(row.arrears_amount)}</td>
+            <td class="px-4 py-4 text-center print:hidden">
+                <div class="flex items-center justify-center gap-2">
+                    <button class="hide-btn p-1.5 hover:bg-gray-200 rounded-md" data-id="${rowId}">
+                        <i class="${isHidden ? 'fa-solid fa-eye text-gray-600' : 'fa-regular fa-eye-slash text-gray-400'}"></i>
                     </button>
-                    <button class="flag-btn p-1.5 hover:bg-yellow-100 rounded-md transition-colors" data-id="${rowId}" title="Flag">
-                        <i class="${flagIcon}"></i>
+                    <button class="flag-btn p-1.5 hover:bg-orange-100 rounded-md" data-id="${rowId}">
+                        <i class="${isFlagged ? 'fa-solid fa-flag text-orange-600' : 'fa-regular fa-flag text-gray-400'}"></i>
                     </button>
                 </div>
             </td>
-        </tr>
-    `;
+        </tr>`;
 };
 
 function attachGlobalListeners() {
-    const searchInput = document.getElementById('searchInput');
-    const filterBtn = document.getElementById('filterBtn');
-    const sortBtn = document.getElementById('sortBtn');
-
-    let searchTimeout = null;
-    if(searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                processData(e.target.value);
-            }, 300);
-        });
-    }
-    
-    if(filterBtn) filterBtn.addEventListener('click', () => {
-        appState.filterArrears = !appState.filterArrears;
-        const btn = document.getElementById('filterBtn');
-        if(appState.filterArrears) {
-            btn.innerHTML = `<i class="fa-solid fa-filter mr-2"></i> <span>Filter: Arrears Only</span>`;
-            btn.className = "flex items-center px-3 py-1.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg whitespace-nowrap transition-colors";
-        } else {
-            btn.innerHTML = `<i class="fa-solid fa-filter mr-2"></i> <span>Filter: All</span>`;
-            btn.className = "flex items-center px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 whitespace-nowrap transition-colors";
-        }
-        processData(document.getElementById('searchInput').value);
+    ['current_month', 'last_3_months', 'ytd', 'all'].forEach(p => {
+        document.getElementById(`tab-${p}`)?.addEventListener('click', () => switchAnalyticsTab(p));
     });
 
-    if(sortBtn) sortBtn.addEventListener('click', () => {
+    document.getElementById('resetViewBtn')?.addEventListener('click', () => {
+        appState.hiddenRows.clear();
+        appState.flaggedRows.clear();
+        renderTable();
+    });
+
+    let searchTimeout;
+    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => processData(e.target.value), 300);
+    });
+
+    document.getElementById('filterBtn')?.addEventListener('click', () => {
+        appState.filterArrears = !appState.filterArrears;
+        const btn = document.getElementById('filterBtn');
+        btn.innerHTML = appState.filterArrears ? 
+            `<i class="fa-solid fa-filter mr-2"></i> <span>Filter: Arrears Only</span>` : 
+            `<i class="fa-solid fa-filter mr-2"></i> <span>Filter: All</span>`;
+        btn.className = appState.filterArrears ? 
+            "px-4 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" : 
+            "px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50";
+        processData(document.getElementById('searchInput')?.value);
+    });
+
+    document.getElementById('sortBtn')?.addEventListener('click', () => {
         const modes = ['month_desc', 'month_asc', 'amount_desc', 'amount_asc'];
         const labels = ['Date (Newest)', 'Date (Oldest)', 'Principal (High)', 'Principal (Low)'];
         const nextIndex = (modes.indexOf(appState.sortMode) + 1) % modes.length;
         appState.sortMode = modes[nextIndex];
-        const btn = document.getElementById('sortBtn');
-        btn.innerHTML = `<i class="fa-solid fa-sort mr-2"></i> <span>Sort: ${labels[nextIndex]}</span>`;
-        processData(document.getElementById('searchInput').value);
+        document.getElementById('sortBtn').innerHTML = `<i class="fa-solid fa-sort mr-2"></i> <span>Sort: ${labels[nextIndex]}</span>`;
+        processData(document.getElementById('searchInput')?.value);
     });
+
+    document.getElementById('printPdfBtn')?.addEventListener('click', () => window.print());
+    document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportAnalyticsToExcel());
 }
 
 function attachRowListeners() {
     document.querySelectorAll('.hide-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const id = e.currentTarget.dataset.id;
-            if(id) {
-                if (appState.hiddenRows.has(id)) {
-                    appState.hiddenRows.delete(id);
-                } else {
-                    appState.hiddenRows.add(id);
-                }
-                processData(document.getElementById('searchInput').value);
-            }
+            appState.hiddenRows.has(id) ? appState.hiddenRows.delete(id) : appState.hiddenRows.add(id);
+            renderTable();
         });
     });
-    
     document.querySelectorAll('.flag-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const id = e.currentTarget.dataset.id;
-            if(id) {
-                if (appState.flaggedRows.has(id)) {
-                    appState.flaggedRows.delete(id);
-                } else {
-                    appState.flaggedRows.add(id);
-                }
-                processData(document.getElementById('searchInput').value);
-            }
+            appState.flaggedRows.has(id) ? appState.flaggedRows.delete(id) : appState.flaggedRows.add(id);
+            renderTable();
         });
     });
 }
 
 async function init() {
-    console.log("Analytics Page Initializing...");
-    
     const safetyTimer = setTimeout(() => {
         const main = document.getElementById('main-content');
-        if (main && main.innerHTML.includes('Loading')) {
-            main.innerHTML = `
-                <div class="flex flex-col items-center justify-center h-96 text-red-500">
-                    <i class="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
-                    <p class="font-bold">System Timeout</p>
-                    <p class="text-sm text-gray-500 mt-2">Data fetch took too long. Please refresh.</p>
-                </div>`;
+        if (main && main.innerHTML.includes('Initializing')) {
+            main.innerHTML = `<div class="p-12 text-center text-red-500"><i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i><p>Network Error. Please refresh.</p></div>`;
         }
     }, 8000);
 
     try {
         await initLayout();
-        
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) mainContent.innerHTML = pageTemplate;
-        
+        document.getElementById('main-content').innerHTML = pageTemplate;
         attachGlobalListeners();
-
-        const tableBody = document.getElementById('analytics-table-body');
         
-        console.log("Fetching Data...");
         const { data, error } = await fetchAnalyticsData();
-        clearTimeout(safetyTimer); 
+        clearTimeout(safetyTimer);
 
         if (error) throw error;
-        
-        if (!data || data.length === 0) {
-            console.warn("No Data returned");
-            if(tableBody) tableBody.innerHTML = `<tr><td colspan="8" class="text-center py-12 text-gray-400">No financial records found.</td></tr>`;
-            return;
-        }
-
-        console.log(`Loaded ${data.length} rows.`);
-        appState.rawData = data;
+        appState.rawData = data || [];
         processData();
-
-    } catch (e) {
-        clearTimeout(safetyTimer);
-        console.error("Init Error:", e);
-        const main = document.getElementById('main-content');
-        if (main) {
-             main.innerHTML = `
-                <div class="flex flex-col items-center justify-center h-96 text-red-500">
-                    <i class="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
-                    <p class="font-bold">Error loading analytics</p>
-                    <p class="text-sm text-red-400 mt-2">${e.message || e}</p>
-                </div>`;
-        }
-    }
+    } catch (e) { console.error("Init Error:", e); }
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
 

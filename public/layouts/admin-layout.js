@@ -1,8 +1,10 @@
 // public/layouts/admin-layout.js
 import { supabase } from '/Services/supabaseClient.js';
+import { ensureThemeLoaded, getCachedTheme, getCompanyName, DEFAULT_SYSTEM_SETTINGS } from '../shared/theme-runtime.js';
 
 const sidebarContainer = document.getElementById('sidebar-container');
 const headerContainer = document.getElementById('header-container');
+let companyName = DEFAULT_SYSTEM_SETTINGS.company_name;
 
 // ============================================
 // AUTH GUARD: This function checks authentication
@@ -11,6 +13,9 @@ const headerContainer = document.getElementById('header-container');
 // ============================================
 export async function initLayout() {
   const { data: { session } } = await supabase.auth.getSession();
+
+  const theme = await ensureThemeLoaded();
+  companyName = getCompanyName(theme || getCachedTheme() || DEFAULT_SYSTEM_SETTINGS);
 
   // If there is NO session, kick the user out.
   if (!session) {
@@ -52,7 +57,7 @@ function renderSidebar() {
   sidebarContainer.innerHTML = `
   <div id="sidebar" class="fixed inset-y-0 left-0 z-40 flex flex-col w-64 bg-[#0C0C0C] transition-transform duration-300 ease-in-out md:translate-x-0 -translate-x-full">
     <div class="flex items-center justify-center h-16 bg-black">
-      <h1 class="text-xl font-bold text-white tracking-widest">ZWANE FINANCE</h1>
+      <h1 class="text-xl font-bold text-white tracking-widest">${companyName ? companyName.toUpperCase() : 'COMPANY'}</h1>
     </div>
     <nav class="flex-1 overflow-y-auto">
       <ul class="p-4 space-y-2">

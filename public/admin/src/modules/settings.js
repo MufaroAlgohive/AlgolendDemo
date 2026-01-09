@@ -68,9 +68,15 @@ const normalizeHex = (value) => {
   return null;
 };
 
+const normalizeCompanyName = (value) => {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return name || DEFAULT_SYSTEM_SETTINGS.company_name;
+};
+
 const cloneSystemSettings = (settings = {}) => ({
   ...DEFAULT_SYSTEM_SETTINGS,
   ...settings,
+  company_name: normalizeCompanyName(settings?.company_name),
   auth_overlay_color: normalizeHex(settings?.auth_overlay_color) || DEFAULT_SYSTEM_SETTINGS.auth_overlay_color,
   auth_overlay_enabled: normalizeBooleanSetting(settings?.auth_overlay_enabled, DEFAULT_SYSTEM_SETTINGS.auth_overlay_enabled),
   auth_background_flip: normalizeBooleanSetting(settings?.auth_background_flip, DEFAULT_SYSTEM_SETTINGS.auth_background_flip),
@@ -90,7 +96,7 @@ let themeHasPendingChanges = false;
 let isSavingTheme = false;
 let systemSettingsMetadata = { updated_at: null, updated_by: null };
 
-const BRANDING_STORAGE_BUCKET = 'branding';
+const BRANDING_STORAGE_BUCKET = 'avatars';
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 const MAX_WALLPAPER_FILE_SIZE = 6 * 1024 * 1024; // 6 MB
@@ -256,6 +262,11 @@ const updateThemePreviewUI = () => {
       btn.classList.remove('bg-brand-accent', 'text-white', 'shadow');
     }
   });
+
+  const companyNameInput = document.getElementById('company-name-input');
+  if (companyNameInput && document.activeElement !== companyNameInput) {
+    companyNameInput.value = systemSettingsDraft.company_name || '';
+  }
 
   updateLogoPreviewUI();
   updateWallpaperPreviewUI();
@@ -1008,6 +1019,9 @@ function renderSystemSettingsTab() {
         minute: '2-digit'
       })
     : 'Not saved yet';
+  const companyName = normalizeCompanyName(systemSettingsDraft.company_name);
+  const companyNameAttr = escapeHtmlAttr(companyName);
+  const companyPlaceholder = escapeHtmlAttr(DEFAULT_SYSTEM_SETTINGS.company_name);
   const currentLogo = systemSettingsDraft.company_logo_url || '';
   const currentLogoAttr = escapeHtmlAttr(currentLogo);
   const currentWallpaper = systemSettingsDraft.auth_background_url || '';
@@ -1020,6 +1034,21 @@ function renderSystemSettingsTab() {
 
   content.innerHTML = `
     <div class="space-y-6">
+      <section class="system-card border rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h4 class="text-xl font-bold text-gray-900">Company Name</h4>
+            <p class="text-sm text-gray-500">Used across navbars, auth, exports, and notifications.</p>
+          </div>
+          <span class="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600">Brand</span>
+        </div>
+        <div class="space-y-2">
+          <label for="company-name-input" class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Display Name</label>
+          <input type="text" id="company-name-input" value="${companyNameAttr}" placeholder="${companyPlaceholder}" maxlength="120" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-brand-accent focus:border-brand-accent text-sm" />
+          <p class="text-xs text-gray-500">Leave blank to use the default brand. This name appears on dashboards, exports, and emails.</p>
+        </div>
+      </section>
+
       <div class="flex flex-col lg:flex-row gap-6">
         <section class="system-card border rounded-2xl p-6 flex-1">
           <div class="flex items-start justify-between mb-6">
@@ -1230,6 +1259,8 @@ function renderSystemSettingsTab() {
     hexInput?.addEventListener('change', (e) => handleThemeHexInput(key, e.target.value));
   });
 
+  document.getElementById('company-name-input')?.addEventListener('input', handleCompanyNameInput);
+
   document.querySelectorAll('[data-theme-mode]').forEach((btn) => {
     btn.addEventListener('click', () => handleThemeModeChange(btn.dataset.themeMode));
   });
@@ -1270,6 +1301,10 @@ function renderSystemSettingsTab() {
     .forEach((field) => field.addEventListener('input', handleCarouselFieldInput));
 
   updateThemePreviewUI();
+}
+
+function handleCompanyNameInput(event) {
+  commitThemeDraft({ company_name: event.target.value || '' });
 }
 
 function handleThemeColorChange(key, value) {

@@ -2,11 +2,7 @@ import { resolve } from 'path';
 
 export default {
   base: '/', 
-  resolve: {
-    alias: {
-      '@shared': resolve(__dirname, '../shared')
-    }
-  },
+ 
   server: {
     host: true,
     hmr: {

@@ -17,11 +17,11 @@ const NAV_SEARCH_ITEMS = [
 let navSearchMatches = [];
 let navSearchActiveIndex = -1;
 let globalUserProfile = null;
-const DEFAULT_BRAND_LOGO = 'https://static.wixstatic.com/media/f82622_cde1fbd5680141c5b0fccca81fb92ad6~mv2.png';
+const DEFAULT_BRAND_LOGO = 'https://static.wixstatic.com/media/f82622_506988ba9a294236abf8917e386103d5~mv2.png';
 const FALLBACK_SYSTEM_THEME = {
-  primary_color: '#E7762E',
-  secondary_color: '#F97316',
-  tertiary_color: '#FACC15',
+  primary_color: '#31005E',
+  secondary_color: '#030108',
+  tertiary_color: '#F3F4F6',
   theme_mode: 'light',
   company_logo_url: null
 };
@@ -789,9 +789,20 @@ function getPageFromURL() {
 }
 
 /**
- * Show/hide loading indicator
+ * Show/hide loading indicator with page transition overlay
  */
-function showLoading(show) {}
+function showLoading(show) {
+  const pageTransition = document.getElementById('page-transition');
+  if (!pageTransition) return;
+  
+  if (show) {
+    pageTransition.classList.remove('transition-hidden');
+    pageTransition.setAttribute('aria-hidden', 'false');
+  } else {
+    pageTransition.classList.add('transition-hidden');
+    pageTransition.setAttribute('aria-hidden', 'true');
+  }
+}
 
 /**
  * Setup notification button (placeholder - actual functionality in setupNotificationDropdown)

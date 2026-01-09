@@ -39,11 +39,10 @@ async function initPaymentsDashboard() {
     
     console.log('✅ Session found, user:', session.user.id);
 
-    await Promise.all([
-      loadActiveLoans(supabase, session.user.id),
-      loadBankAccounts(supabase, session.user.id),
-      loadPaymentHistory(supabase, session.user.id)
-    ]);
+    // Load payments first so loan balances can reflect repayments
+    const paymentsByLoan = await loadPaymentHistory(supabase, session.user.id);
+    await loadActiveLoans(supabase, session.user.id, paymentsByLoan);
+    await loadBankAccounts(supabase, session.user.id);
 
     calculateMetrics();
     renderAll();
@@ -55,7 +54,7 @@ async function initPaymentsDashboard() {
 }
 
 // Load active loans from database
-async function loadActiveLoans(supabase, userId) {
+async function loadActiveLoans(supabase, userId, paymentsByLoan = {}) {
   try {
     const { data, error } = await supabase
       .from('loans')
@@ -66,18 +65,33 @@ async function loadActiveLoans(supabase, userId) {
 
     if (error) throw error;
 
-    activeLoans = (data || []).map(loan => ({
-      id: loan.id,
-      applicationId: loan.application_id,
-      principal: parseFloat(loan.principal_amount),
-      outstanding: parseFloat(loan.outstanding_balance || loan.principal_amount),
-      monthlyPayment: parseFloat(loan.monthly_payment || 0),
-      nextPaymentDate: loan.next_payment_date,
-      interestRate: parseFloat(loan.interest_rate),
-      termMonths: loan.term_months,
-      status: loan.status,
-      startDate: loan.start_date
-    }));
+    activeLoans = (data || []).map(loan => {
+      const principal = parseFloat(loan.principal_amount) || 0;
+      const termMonths = parseInt(loan.term_months, 10) || 0;
+      const rawRate = parseFloat(loan.interest_rate) || 0;
+      const normalizedRate = rawRate > 1 ? rawRate / 100 : rawRate; // allow stored percentages
+      const storedMonthly = parseFloat(loan.monthly_payment) || 0;
+      const monthlyPayment = storedMonthly || calculateMonthlyPayment(principal, normalizedRate, termMonths);
+      const totalRepayment = parseFloat(loan.total_repayment) || (monthlyPayment * (termMonths || 1)) || principal;
+      const paidToDate = paymentsByLoan[loan.id] || 0;
+      const outstanding = Math.max(totalRepayment - paidToDate, 0);
+      const nextPaymentDate = loan.next_payment_date || loan.first_payment_date || loan.repayment_start_date;
+
+      return {
+        id: loan.id,
+        applicationId: loan.application_id,
+        principal,
+        totalRepayment,
+        paidToDate,
+        outstanding,
+        monthlyPayment,
+        nextPaymentDate,
+        interestRate: normalizedRate,
+        termMonths,
+        status: loan.status,
+        startDate: loan.start_date
+      };
+    });
 
     console.log('✅ Loaded active loans:', activeLoans);
   } catch (error) {
@@ -146,9 +160,17 @@ async function loadPaymentHistory(supabase, userId) {
     }));
 
     console.log('✅ Loaded payment history:', paymentHistory);
+
+    const paymentsByLoan = paymentHistory.reduce((acc, payment) => {
+      acc[payment.loanId] = (acc[payment.loanId] || 0) + (payment.amount || 0);
+      return acc;
+    }, {});
+
+    return paymentsByLoan;
   } catch (error) {
     console.error('Error loading payment history:', error);
     paymentHistory = [];
+    return {};
   }
 }
 
@@ -228,8 +250,8 @@ function renderActiveLoans() {
         </div>
         <div class="loan-details">
           <div class="loan-detail-item">
-            <span class="loan-detail-label">Principal:</span>
-            <span class="loan-detail-value">${formatCurrency(loan.principal)}</span>
+            <span class="loan-detail-label">Total Repayment:</span>
+            <span class="loan-detail-value">${formatCurrency(loan.totalRepayment || loan.principal)}</span>
           </div>
           <div class="loan-detail-item">
             <span class="loan-detail-label">Outstanding:</span>
@@ -576,10 +598,10 @@ window.closeLoanDetailsModal = function() {
 async function populateLoanDetails(loan) {
   try {
     // Calculate derived values
-    const totalRepayment = loan.principal + (loan.principal * loan.interestRate * (loan.termMonths / 12));
+    const totalRepayment = loan.totalRepayment || (loan.principal + (loan.principal * loan.interestRate * (loan.termMonths / 12)));
     const totalInterest = totalRepayment - loan.principal;
-    const totalPaid = loan.principal - loan.outstanding;
-    const progressPercentage = ((totalPaid / totalRepayment) * 100).toFixed(1);
+    const totalPaid = loan.paidToDate ?? (totalRepayment - loan.outstanding);
+    const progressPercentage = totalRepayment ? ((totalPaid / totalRepayment) * 100).toFixed(1) : '0';
     
     // Estimate payments made (simplified calculation)
     const paymentsMade = Math.floor((totalPaid / loan.monthlyPayment) || 0);
@@ -601,7 +623,7 @@ async function populateLoanDetails(loan) {
     document.getElementById('loanDetailStatus').className = `loan-status-badge ${statusText}`;
 
     // Update summary cards
-    document.getElementById('loanPrincipal').textContent = formatCurrency(loan.principal);
+    document.getElementById('loanPrincipal').textContent = formatCurrency(loan.totalRepayment || loan.principal);
     document.getElementById('loanOutstanding').textContent = formatCurrency(loan.outstanding);
     document.getElementById('loanMonthly').textContent = formatCurrency(loan.monthlyPayment);
     document.getElementById('loanTotalPaid').textContent = formatCurrency(totalPaid);

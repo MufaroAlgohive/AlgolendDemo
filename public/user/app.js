@@ -5,7 +5,7 @@ const path = require('path');
 const tillSlipRoute = require('./routes/tillSlipRoute');
 const bankStatementRoute = require('./routes/bankStatementRoute');
 const idcardRoute = require('./routes/idcardRoute');
-const kyc = require(path.join(__dirname, 'kycService'));
+const kyc = require(path.join(__dirname, '..', 'user-portal', 'Services', 'kycService'));
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 5001;
 // Serve static files from public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API routes
+// API routes.
 
 // Document upload routes
 app.use('/api/tillslip', tillSlipRoute);

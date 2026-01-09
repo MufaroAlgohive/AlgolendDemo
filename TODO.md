@@ -5,10 +5,12 @@
 - [x] disclimer on calculator 
 - [x] Logout button working 
 - [ ] transactions enabled
-- [ ] Mobile version 
+- [x] Mobile version 
 - [x] guards on steps
-- [ ] enable webhook for didit response 
+- [x] enable webhook for didit response 
 - [ ] add documents , disclamers , privacy policy, user guide 
 - [x] fix calculations 
-- [ ] get correct Zwane details 
+- [ ] get correct company details 
 - [ ] show file on upload screen 
+
+n

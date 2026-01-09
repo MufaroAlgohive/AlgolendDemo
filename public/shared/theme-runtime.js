@@ -1,5 +1,7 @@
 const DEFAULT_AUTH_OVERLAY_COLOR = '#EA580C';
 
+const DEFAULT_COMPANY_NAME = 'Your Company';
+
 const DEFAULT_CAROUSEL_SLIDES = [
   {
     title: 'A Leap to\nFinancial Freedom',
@@ -17,6 +19,7 @@ const DEFAULT_CAROUSEL_SLIDES = [
 
 const DEFAULT_SYSTEM_SETTINGS = {
   id: 'global',
+  company_name: DEFAULT_COMPANY_NAME,
   primary_color: '#E7762E',
   secondary_color: '#F97316',
   tertiary_color: '#FACC15',
@@ -88,6 +91,11 @@ const normalizeBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const normalizeCompanyName = (value) => {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return name || DEFAULT_SYSTEM_SETTINGS.company_name;
+};
+
 const normalizeHexColor = (value, fallback) => {
   if (!value) return fallback;
   let hex = `${value}`.trim().replace('#', '');
@@ -117,11 +125,24 @@ const normalizeCarouselSlides = (slides) => {
 const normalizeTheme = (theme = {}) => ({
   ...DEFAULT_SYSTEM_SETTINGS,
   ...theme,
+  company_name: normalizeCompanyName(theme?.company_name),
   auth_background_flip: normalizeBoolean(theme?.auth_background_flip, DEFAULT_SYSTEM_SETTINGS.auth_background_flip),
   auth_overlay_color: normalizeHexColor(theme?.auth_overlay_color, DEFAULT_SYSTEM_SETTINGS.auth_overlay_color),
   auth_overlay_enabled: normalizeBoolean(theme?.auth_overlay_enabled, DEFAULT_SYSTEM_SETTINGS.auth_overlay_enabled),
   carousel_slides: normalizeCarouselSlides(theme.carousel_slides)
 });
+
+const applyDocumentBranding = (companyName) => {
+  if (typeof document === 'undefined') return;
+  const safeName = normalizeCompanyName(companyName);
+  if (!safeName) return;
+  const currentTitle = document.title || '';
+  if (!currentTitle) return;
+  const nextTitle = currentTitle.replace(/zwane/gi, safeName);
+  if (nextTitle !== currentTitle) {
+    document.title = nextTitle;
+  }
+};
 
 const applyCssVariables = (theme, persistCache) => {
   const normalized = normalizeTheme(theme);
@@ -147,6 +168,8 @@ const applyCssVariables = (theme, persistCache) => {
 
   const mode = normalized.theme_mode === 'dark' ? 'dark' : 'light';
   root.setAttribute('data-theme', mode);
+
+  applyDocumentBranding(normalized.company_name);
 
   if (persistCache) {
     cachedTheme = normalized;
@@ -189,6 +212,8 @@ const fetchFromApi = async (force) => {
 };
 
 export const getCachedTheme = () => cachedTheme;
+
+export const getCompanyName = (theme) => normalizeCompanyName(theme?.company_name);
 
 export async function ensureThemeLoaded(options = {}) {
   const force = options.force === true;

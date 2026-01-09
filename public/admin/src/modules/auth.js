@@ -1,191 +1,477 @@
-// src/modules/auth.js
-import { supabase } from '../services/supabaseClient.js';
+import { supabase } from '../Services/supabaseClient.js';
+import { ensureThemeLoaded, getCachedTheme, DEFAULT_SYSTEM_SETTINGS, getCompanyName } from '../shared/theme-runtime.js';
 
 const authContainer = document.getElementById('auth-container');
-let isLogin = false; // Default to signup
 
-async function checkSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-        const { data: isAllowed, error } = await supabase.rpc('is_role_or_higher', { p_min_role: 'base_admin' });
-        
-        if (isAllowed) {
-            window.location.replace('/dashboard.html');
-        } else {
-            window.location.replace('/credit-check.html');
+// State Management
+let viewState = 'login'; // Options: 'login', 'signup', 'forgot'
+let formMessage = { type: '', text: '' }; 
+let brandingTheme = null;
+
+const DEFAULT_BRAND_LOGO = 'https://placehold.co/240x80?text=Your+Logo';
+const DEFAULT_AUTH_WALLPAPER = 'https://static.wixstatic.com/media/f82622_a05fcfc8600d48818feb2feeef4796fa~mv2.png';
+const DEFAULT_AUTH_OVERLAY_COLOR = DEFAULT_SYSTEM_SETTINGS.auth_overlay_color || '#EA580C';
+const DEFAULT_AUTH_OVERLAY_ENABLED = DEFAULT_SYSTEM_SETTINGS.auth_overlay_enabled !== false;
+const DEFAULT_CAROUSEL_SLIDES = (DEFAULT_SYSTEM_SETTINGS.carousel_slides || []).map((slide) => ({
+    title: slide?.title || '',
+    text: slide?.text || ''
+}));
+
+const escapeAttr = (value = '') => {
+    const str = `${value || ''}`;
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+};
+
+const escapeHtml = (value = '') => `${value}`
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const getActiveCompanyName = () => getCompanyName(brandingTheme || getCachedTheme() || DEFAULT_SYSTEM_SETTINGS);
+
+const sanitizeCarouselSlides = (slides) => {
+    const fallback = DEFAULT_CAROUSEL_SLIDES;
+    const incoming = Array.isArray(slides) && slides.length ? slides : fallback;
+    return fallback.map((fallbackSlide, index) => {
+        const candidate = incoming[index] || {};
+        const title = typeof candidate.title === 'string' ? candidate.title.trim() : '';
+        const text = typeof candidate.text === 'string' ? candidate.text.trim() : '';
+        return {
+            title: title || fallbackSlide.title,
+            text: text || fallbackSlide.text
+        };
+    });
+};
+
+const normalizeHexColor = (value, fallback) => {
+    if (!value) return fallback;
+    let hex = `${value}`.trim().replace('#', '');
+    if (hex.length === 3) {
+        hex = hex.split('').map((char) => char + char).join('');
+    }
+    if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
+        return fallback;
+    }
+    return `#${hex.toUpperCase()}`;
+};
+
+let carouselSlides = sanitizeCarouselSlides();
+let currentSlideIndex = 0;
+let carouselInterval;
+
+async function ensureBrandingTheme(force = false) {
+    try {
+        const theme = await ensureThemeLoaded({ force });
+        brandingTheme = theme;
+        carouselSlides = sanitizeCarouselSlides(theme?.carousel_slides);
+        currentSlideIndex = 0;
+        return theme;
+    } catch (error) {
+        console.warn('Auth theme load failed:', error);
+        const cached = getCachedTheme();
+        if (cached) {
+            brandingTheme = cached;
+            carouselSlides = sanitizeCarouselSlides(cached.carousel_slides);
+            currentSlideIndex = 0;
         }
-    } else {
-        render();
+        return brandingTheme;
     }
 }
 
+// ============================================
+// AUTH GUARD
+// ============================================
+async function checkSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    await ensureBrandingTheme();
+    if (session) {
+        const { data: isAllowed, error } = await supabase.rpc('is_role_or_higher', { 
+            p_min_role: 'base_admin' 
+        });
+
+        if (error) {
+            console.error('Error checking role:', error.message);
+            await supabase.auth.signOut();
+            render();
+            return;
+        }
+        
+        if (isAllowed) {
+            window.location.replace('/admin/dashboard');
+        } else {
+            window.location.replace('/user-portal/index.html');
+        }
+    } else {
+        render(); 
+    }
+}
+
+// ============================================
+// CAROUSEL LOGIC
+// ============================================
+function startCarousel() {
+    if (carouselInterval) clearInterval(carouselInterval);
+    
+    const titleEl = document.getElementById('carousel-title');
+    const textEl = document.getElementById('carousel-text');
+    const dotsContainer = document.getElementById('carousel-dots');
+
+    if (!titleEl || !textEl || !dotsContainer) return;
+
+    const getSlides = () => (carouselSlides.length ? carouselSlides : DEFAULT_CAROUSEL_SLIDES);
+    const totalSlides = getSlides().length;
+
+    const updateSlide = (index) => {
+        titleEl.style.opacity = '0';
+        textEl.style.opacity = '0';
+        
+        setTimeout(() => {
+            const activeSlides = getSlides();
+            const safeIndex = index % activeSlides.length;
+            titleEl.innerText = activeSlides[safeIndex].title;
+            textEl.innerText = activeSlides[safeIndex].text;
+            titleEl.style.opacity = '1';
+            textEl.style.opacity = '1';
+        }, 200);
+
+        dotsContainer.innerHTML = getSlides().map((_, i) => `
+            <button onclick="window.setSlide(${i})" 
+                class="transition-all duration-300 rounded-full ${
+                i === index ? 'w-8 h-1.5 bg-white' : 'w-2 h-1.5 bg-white/40 hover:bg-white/60'
+            }"></button>
+        `).join('');
+    };
+
+    updateSlide(currentSlideIndex);
+
+    carouselInterval = setInterval(() => {
+        currentSlideIndex = (currentSlideIndex + 1) % totalSlides;
+        updateSlide(currentSlideIndex);
+    }, 20000); 
+
+    window.setSlide = (index) => {
+        currentSlideIndex = index;
+        clearInterval(carouselInterval);
+        updateSlide(index);
+        setTimeout(() => {
+            if(carouselInterval) clearInterval(carouselInterval);
+            carouselInterval = setInterval(() => {
+                currentSlideIndex = (currentSlideIndex + 1) % totalSlides;
+                updateSlide(currentSlideIndex);
+            }, 20000);
+        }, 20000);
+    };
+}
+
+// ============================================
+// RENDER FUNCTION 
+// ============================================
 function render() {
     if (!authContainer) return;
 
-    const mainHeading = isLogin ? 'Welcome Back' : 'Create Your Account'; 
+    const theme = brandingTheme || getCachedTheme() || {};
+    const brandLogo = (theme.company_logo_url || '').trim() || DEFAULT_BRAND_LOGO;
+    const wallpaper = (theme.auth_background_url || '').trim() || DEFAULT_AUTH_WALLPAPER;
+    const overlayEnabled = typeof theme.auth_overlay_enabled === 'undefined'
+        ? DEFAULT_AUTH_OVERLAY_ENABLED
+        : theme.auth_overlay_enabled !== false;
+    const overlayColor = normalizeHexColor(theme.auth_overlay_color, DEFAULT_AUTH_OVERLAY_COLOR);
+    const shouldFlipWallpaper = Boolean(theme.auth_background_flip);
+    const wallpaperScaleX = shouldFlipWallpaper ? '-1' : '1';
+    const brandLogoAttr = escapeAttr(brandLogo);
+    const wallpaperAttr = escapeAttr(wallpaper);
+    const overlayColorAttr = escapeAttr(overlayColor);
+    const companyName = escapeHtml(getActiveCompanyName());
 
-    const clipPathSVG = `
-        <svg width="0" height="0" style="position: absolute;">
-            <defs>
-                <clipPath id="rect-clip" clipPathUnits="objectBoundingBox">
-                    <path d="M0,0 H1 V1 H0 Z" />
-                </clipPath>
-            </defs>
-        </svg>
+    let mainHeading, subHeading, buttonText;
+    
+    switch(viewState) {
+        case 'signup':
+            mainHeading = 'Create Account';
+            subHeading = 'Enter your details to get started';
+            buttonText = 'Sign Up';
+            break;
+        case 'forgot':
+            mainHeading = 'Forgot Password';
+            subHeading = 'Enter your email to receive a reset link';
+            buttonText = 'Send Reset Link';
+            break;
+        case 'login':
+        default:
+            mainHeading = 'Welcome Back!';
+            subHeading = 'Sign in to your account';
+            buttonText = 'Sign In';
+            break;
+    }
+
+    const messageBanner = formMessage.text ? `
+        <div class="p-3 rounded-lg mb-4 text-xs font-medium text-center border ${
+            formMessage.type === 'success' 
+            ? 'bg-green-500/20 text-green-100 border-green-500/30 lg:bg-green-50 lg:text-green-700 lg:border-green-200' 
+            : 'bg-red-500/20 text-red-100 border-red-500/30 lg:bg-red-50 lg:text-red-700 lg:border-red-200'
+        }">
+            ${formMessage.text}
+        </div>
+    ` : '';
+
+    const animationStyles = `
+        <style>
+            @keyframes kenBurns {
+                0% { transform: scaleX(${wallpaperScaleX}) scale(1); }
+                50% { transform: scaleX(${wallpaperScaleX}) scale(1.1); }
+                100% { transform: scaleX(${wallpaperScaleX}) scale(1); }
+            }
+            .animate-ken-burns {
+                animation: kenBurns 40s ease-in-out infinite alternate;
+                will-change: transform;
+            }
+        </style>
     `;
 
-    // bg-black confirmed
     authContainer.innerHTML = `
-    ${clipPathSVG}
-    <div class="w-full max-w-6xl mx-auto grid lg:grid-cols-2 rounded-2xl shadow-2xl overflow-hidden bg-black min-h-[700px]">
+    ${animationStyles}
+    
+    <div class="relative min-h-screen w-full lg:fixed lg:inset-0 lg:h-screen lg:overflow-hidden font-sans bg-black">
         
-        <div class="relative flex flex-col items-center justify-center p-8 lg:p-12 text-white" 
-             style="background-image: url('https://static.wixstatic.com/media/f82622_53f91a7cf57744c7aee58e297e476e1b~mv2.png'); 
-                    background-size: cover; 
-                    background-position: center bottom; 
-                    clip-path: url(#rect-clip);">
-            
-            <div class="relative z-10 text-center p-4 max-w-sm mx-auto" style="transform: translateY(123px);">
-                <h2 class="text-base font-bold mb-2">Zwane Finance</h2>
-                <h3 class="text-2xl font-normal mb-4">Get Started</h3>
-                
-                <p class="text-xs sm:text-sm text-gray-200">
-                    A Leap to Financial Freedom
-                </p>
-                
-                <div class="mt-8 space-y-2 max-w-xs mx-auto">
-                    
-                    <div class="flex items-center p-2">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white text-gray-900 font-bold text-xs mr-3">1</span>
-                        <span class="text-white font-medium text-sm p-1 rounded-md hover:bg-white hover:bg-opacity-20 transition-colors duration-200 cursor-pointer">Sign up your account</span>
-                    </div>
-                    <div class="flex items-center p-2">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white bg-opacity-30 text-white font-bold text-xs mr-3">2</span>
-                        <span class="text-gray-300 font-medium text-sm p-1 rounded-md hover:bg-white hover:bg-opacity-20 transition-colors duration-200 cursor-pointer">Verify your identity</span>
-                    </div>
-                    <div class="flex items-center p-2">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white bg-opacity-30 text-white font-bold text-xs mr-3">3</span>
-                        <span class="text-gray-300 font-medium text-sm p-1 rounded-md hover:bg-white hover:bg-opacity-20 transition-colors duration-200 cursor-pointer">Access your funds</span>
-                    </div>
-                </div>
+        <div class="fixed inset-0 w-full h-full z-0 pointer-events-none overflow-hidden">
+            <div class="animate-ken-burns absolute inset-0 w-full h-full" 
+                 style="background-image: url('${wallpaperAttr}'); 
+                        background-size: cover; 
+                        background-position: center;
+                        transform: scaleX(${wallpaperScaleX});">
+            </div>
+            ${overlayEnabled ? `
+            <div class="absolute inset-0 mix-blend-multiply" style="background-color:${overlayColorAttr}; opacity:0.35;"></div>` : ''}
+            <div class="absolute inset-0 bg-black/40"></div>
+        </div>
+
+        <div class="hidden lg:flex absolute inset-y-0 left-0 z-10 p-12 flex-col justify-between pointer-events-none w-2/3">
+            <div class="pointer-events-auto">
+                <img src="${brandLogoAttr}" alt="Company logo" class="h-16 w-auto object-contain">
+            </div>
+            <div class="mb-12 max-w-lg pointer-events-auto">
+                <h1 id="carousel-title" class="text-white text-5xl font-bold mb-6 leading-tight transition-opacity duration-300 whitespace-pre-line"></h1>
+                <p id="carousel-text" class="text-white text-lg font-light leading-relaxed mb-8 transition-opacity duration-300"></p>
+                <div id="carousel-dots" class="flex gap-2"></div>
             </div>
         </div>
 
-        <div class="p-12 lg:p-16 text-gray-300 flex flex-col justify-center bg-black">
-            <div>
-                <h2 class="text-3xl font-extrabold text-white">${mainHeading}</h2>
-                <p class="mt-2 text-gray-400">${isLogin ? 'Sign in to your account' : 'Enter your personal data to create your account.'}</p>
-            </div>
+        <div class="relative z-20 min-h-screen flex flex-col items-center justify-center py-12 
+                    lg:absolute lg:right-0 lg:top-0 lg:h-full lg:w-1/3 lg:bg-white lg:shadow-2xl lg:py-0 lg:block">
             
-            <form id="auth-form" class="mt-8 space-y-6">
-                <div class="space-y-4">
-                    
-                    ${!isLogin ? `
-                    <div>
-                        <label for="full-name" class="text-sm font-medium text-gray-400">Full Name</label>
-                        <input id="full-name" name="fullName" type="text" required class="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-700 bg-gray-800 placeholder-gray-500 text-white rounded-md focus:outline-none focus:ring-orange-500 focus:border-orange-500" placeholder="eg. John Francisco">
-                    </div>
-                    ` : ''}
-
-                    <div>
-                        <label for="email-address" class="text-sm font-medium text-gray-400">Email address</label>
-                        <input id="email-address" name="email" type="email" autocomplete="email" required class="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-700 bg-gray-800 placeholder-gray-500 text-white rounded-md focus:outline-none focus:ring-orange-500 focus:border-orange-500" placeholder="eg. johnfrancisco@gmail.com">
-                    </div>
-
-                    <div>
-                        <label for="password" class="text-sm font-medium text-gray-400">Password</label>
-                        <input id="password" name="password" type="password" autocomplete="current-password" required class="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-700 bg-gray-800 placeholder-gray-500 text-white rounded-md focus:outline-none focus:ring-orange-500 focus:border-orange-500" placeholder="Enter your password">
-                        ${!isLogin ? `<p class="mt-2 text-xs text-gray-500">Must be at least 6 characters.</p>` : ''}
-                    </div>
-                </div>
-
-                <div id="auth-error" class="text-sm text-center font-medium text-red-500"></div>
+            <div class="w-[90%] max-w-md p-6 rounded-2xl shadow-2xl bg-white/10 backdrop-blur-xl border border-white/20 
+                        lg:w-full lg:max-w-md lg:h-full lg:mx-auto lg:bg-transparent lg:border-0 lg:shadow-none lg:p-12 
+                        flex flex-col justify-center transition-all duration-300">
                 
-                <div>
-                    <button type="submit" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-md text-gray-900 bg-white hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-white disabled:opacity-50">
-                        <span id="auth-button-content">
-                            ${isLogin ? 'Sign In' : 'Sign Up'}
-                        </span>
-                    </button>
-                </div>
-            </form>
+                <div class="w-full">
+                    
+                    <div class="lg:hidden mb-6 flex justify-center">
+                        <img src="${brandLogoAttr}" alt="Company logo" class="h-10 w-auto opacity-90 object-contain">
+                    </div>
 
-            <div class="text-center pt-6">
-                <button id="toggle-auth" class="text-sm font-medium text-orange-500 hover:text-orange-400">
-                    ${isLogin ? 'Need an account? Sign Up' : 'Already have an account? Log In'}
-                </button>
+                    <div class="mb-6 text-center">
+                        <h2 class="text-3xl font-bold text-white lg:text-gray-900 mb-2">${mainHeading}</h2>
+                        <p class="text-gray-200 lg:text-gray-500 text-sm">${subHeading}</p>
+                    </div>
+                    
+                                        <form id="auth-form" class="space-y-4">
+                                                ${messageBanner}
+
+                                                ${viewState === 'signup' ? `
+                                                <div>
+                                                    <label for="full-name" class="block text-xs font-bold text-gray-200 lg:text-gray-700 uppercase mb-1">Full Name</label>
+                                                    <input id="full-name" name="fullName" type="text" required 
+                                                        class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all
+                                                                     lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
+                                                        placeholder="eg. John Francisco">
+                                                </div>
+                                                ` : ''}
+
+                                                <div>
+                                                    <label for="email-address" class="block text-xs font-bold text-gray-200 lg:text-gray-700 uppercase mb-1">Email Address</label>
+                                                    <input id="email-address" name="email" type="email" autocomplete="email" required 
+                                                        class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all
+                                                                     lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
+                                                        placeholder="info@example.com">
+                                                </div>
+
+                                                ${viewState !== 'forgot' ? `
+                                                <div>
+                                                    <label for="password" class="block text-xs font-bold text-gray-200 lg:text-gray-700 uppercase mb-1">Password</label>
+                                                    <div class="relative">
+                                                        <input id="password" name="password" type="password" autocomplete="current-password" required 
+                                                            class="w-full px-4 py-3 rounded border border-white/30 bg-white/10 text-white placeholder-gray-300 focus:bg-white/20 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-all
+                                                                         lg:border-gray-300 lg:bg-white lg:text-gray-900 lg:placeholder-gray-400" 
+                                                            placeholder="********">
+                                                    </div>
+                                                    ${viewState === 'signup' ? `<p class="mt-1 text-xs text-gray-300 lg:text-gray-500">Must be at least 6 characters.</p>` : ''}
+                                                </div>
+                                                ` : ''}
+
+                                                ${viewState === 'login' ? `
+                                                <div class="flex justify-end text-sm">
+                                                    <button type="button" id="btn-to-forgot" class="text-gray-200 hover:text-white lg:text-gray-500 lg:hover:text-orange-600 transition-colors font-medium">Forgot Password?</button>
+                                                </div>
+                                                ` : ''}
+
+                                                <button type="submit" 
+                                                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded shadow-sm text-sm font-bold text-white 
+                                                                 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                                    style="background-color: var(--color-primary, #E7762E);"
+                                                    onmouseenter="this.style.backgroundColor = 'var(--color-primary-hover, #cf5f20)'"
+                                                    onmouseleave="this.style.backgroundColor = 'var(--color-primary, #E7762E)'">
+                                                    <span id="auth-button-content">${buttonText}</span>
+                                                </button>
+                                        </form>
+
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-white/20 lg:border-gray-200"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-transparent text-gray-300 lg:bg-white lg:text-gray-500">or</span>
+                        </div>
+                    </div>
+
+                    <div class="text-center">
+                        <p class="text-sm text-gray-200 lg:text-gray-600">
+                            ${getFooterText()}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-4 text-center border-t border-white/10 lg:border-gray-100 lg:mt-auto">
+                    <p class="text-[10px] text-gray-300 lg:text-sm lg:text-gray-500 leading-tight opacity-70 hover:opacity-100 transition-opacity">
+                        ${companyName} is an authorised financial services provider (FSP 53423) and registered credit provider (NCRCP13510).
+                        <br class="mb-1">
+                        Copyright © 2025 by ${companyName}. All Right Reserved.
+                    </p>
+                </div>
+
             </div>
         </div>
     </div>`;
 
-    attachFormListener();
+    attachListeners();
+    if(window.innerWidth >= 1024) startCarousel(); 
 }
 
-function attachFormListener() {
-    const authForm = document.getElementById('auth-form');
-    if (authForm) {
-        authForm.addEventListener('submit', handleAuth);
+function getFooterText() {
+    const linkClasses = "font-bold text-blue-300 hover:text-white lg:text-blue-600 lg:hover:text-blue-500 ml-1";
+    
+    if (viewState === 'login') {
+        return `Don't have an account? <button id="btn-to-signup" class="${linkClasses}">Register</button>`;
+    } else if (viewState === 'signup') {
+        return `Already have an account? <button id="btn-to-login" class="${linkClasses}">Login</button>`;
+    } else {
+        return `Remembered your password? <button id="btn-to-login" class="${linkClasses}">Login</button>`;
     }
-    const toggleButton = document.getElementById('toggle-auth');
-    if (toggleButton) {
-        toggleButton.addEventListener('click', () => {
-            isLogin = !isLogin;
+}
+
+// ============================================
+// ATTACH LISTENERS 
+// ============================================
+function attachListeners() {
+    const authForm = document.getElementById('auth-form');
+    if (authForm) authForm.addEventListener('submit', handleAuth);
+
+    const addClick = (id, newState) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', () => {
+            viewState = newState;
+            formMessage = { type: '', text: '' };
             render();
         });
-    }
+    };
+
+    addClick('btn-to-signup', 'signup');
+    addClick('btn-to-login', 'login');
+    addClick('btn-to-forgot', 'forgot');
 }
 
+// ============================================
+// HANDLE AUTH 
+// ============================================
 async function handleAuth(e) {
     e.preventDefault();
     const email = e.target.email.value;
-    const password = e.target.password.value;
-    const errorDiv = document.getElementById('auth-error');
     const buttonContent = document.getElementById('auth-button-content');
-    e.target.querySelector('button').disabled = true;
-    buttonContent.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Processing...`;
-    errorDiv.textContent = '';
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    
+    submitButton.disabled = true;
+    buttonContent.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2" style="color: var(--color-secondary, #000000);"></i> Processing...`;
+    formMessage = { type: '', text: '' }; 
 
-    if (isLogin) {
-        // --- LOGIN ---
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-            errorDiv.textContent = error.message;
-        } else {
-            window.location.replace('/index.html');
-        }
-    } else {
-        // --- SIGN UP ---
-        const fullName = e.target.fullName.value;
-        
-        const { data, error } = await supabase.auth.signUp({ 
-            email, 
-            password,
-            options: {
-                data: {
-                    full_name: fullName 
-                }
+    try {
+        if (viewState === 'login') {
+            const password = e.target.password.value;
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            
+            if (error) throw error;
+
+            const { data: isAllowed, error: rpcError } = await supabase.rpc('is_role_or_higher', { p_min_role: 'base_admin' });
+            
+            if (rpcError) {
+                await supabase.auth.signOut();
+                throw new Error('Verification failed.');
             }
-        });
+            
+            window.location.replace(isAllowed ? '/admin/dashboard' : '/user-portal/index.html');
 
-        if (error) {
-            errorDiv.textContent = error.message;
-        } else if (data.user) {
-            alert('Account created! Please check your email to verify your account.');
-            isLogin = true;
+        } else if (viewState === 'signup') {
+            const password = e.target.password.value;
+            const fullName = e.target.fullName.value;
+            
+            const { data, error } = await supabase.auth.signUp({ 
+                email, 
+                password,
+                options: { data: { full_name: fullName } }
+            });
+
+            if (error) throw error;
+
+            if (data.user) {
+                supabase.from('profiles').insert({ 
+                    id: data.user.id, 
+                    full_name: fullName, 
+                    email: data.user.email, 
+                    role: 'borrower' 
+                });
+
+                viewState = 'login';
+                formMessage = {
+                    type: 'success',
+                    text: 'Account created! Check your email to confirm. After confirming your email and logging in, you will be required to complete BOTH Financial Information and Declarations to unlock the user portal.'
+                };
+                render();
+            }
+
+        } else if (viewState === 'forgot') {
+            const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + '/auth/update-password.html',
+            });
+
+            if (error) throw error;
+
+            formMessage = { type: 'success', text: 'Password reset link sent to your email.' };
+            viewState = 'login'; 
             render();
         }
-    }
-    
-    // Reset button state (only if it hasn't navigated away)
-    const formButton = e.target.querySelector('button');
-    if (formButton) {
-        formButton.disabled = false;
-        if (buttonContent) {
-            buttonContent.innerHTML = `${isLogin ? 'Sign In' : 'Sign Up'}`;
-        }
+
+    } catch (error) {
+        formMessage = { type: 'error', text: error.message };
+        render();
     }
 }
 
+// ============================================
+// INITIALIZE
+// ===========================================
 document.addEventListener('DOMContentLoaded', () => {
     checkSession();
 });

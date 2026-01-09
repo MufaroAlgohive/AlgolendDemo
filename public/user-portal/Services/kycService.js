@@ -61,7 +61,7 @@ async function createSession({ userId, email, phone, metadata }) {
   try {
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
-      process.env.SUPABASE_URL || 'https://brydisceqijgqloxjqel.supabase.co',
+      process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
     );
     
@@ -135,7 +135,7 @@ async function downloadAndUploadImage(imageUrl, userId, imageType, bucketName = 
     // Upload to Supabase Storage
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
-      process.env.SUPABASE_URL || 'https://brydisceqijgqloxjqel.supabase.co',
+      process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
     );
     
@@ -202,7 +202,7 @@ async function updateSessionFromWebhook(payload) {
     try {
       const { createClient } = require('@supabase/supabase-js');
       const supabase = createClient(
-        process.env.SUPABASE_URL || 'https://brydisceqijgqloxjqel.supabase.co',
+        process.env.SUPABASE_URL,
         process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
       );
       const { data } = await supabase
@@ -234,7 +234,7 @@ async function updateSessionFromWebhook(payload) {
   try {
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
-      process.env.SUPABASE_URL || 'https://brydisceqijgqloxjqel.supabase.co',
+      process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
     );
     
@@ -417,7 +417,7 @@ async function getUserKycStatus(userId) {
   try {
     const { createClient } = require('@supabase/supabase-js');
     const supabase = createClient(
-      process.env.SUPABASE_URL || 'https://brydisceqijgqloxjqel.supabase.co',
+      process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
     );
     

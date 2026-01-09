@@ -44,11 +44,12 @@ function openResource(type) {
 
 function submitSupportRequest(event) {
   event.preventDefault();
+  const fallbackEmail = (window.SUPPORT_EMAIL || 'support@example.com').trim();
   const subject = document.getElementById('supportSubject').value;
   const message = document.getElementById('supportMessage').value;
   
   // Create mailto link
-  const mailtoLink = `mailto:support@zwanefinance.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+  const mailtoLink = `mailto:${fallbackEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
   window.open(mailtoLink);
   
   // Clear form
