@@ -1,4 +1,4 @@
-import"./supabaseClient-C9gCct-F.js";import{i as c}from"./layout-DndgIVcP.js";/* empty css               */import{a as i,b as s}from"./utils-D6Z1B7Jq.js";import{y as m,z as p,A as g}from"./dataService-d5RfGeK7.js";import"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm";let d=[];function f(){const r=document.getElementById("main-content");r&&(r.innerHTML=`
+import"./supabaseClient-CsC_yag8.js";import{i as c}from"./layout-DKFM-dk0.js";/* empty css               */import{a as i,b as s}from"./utils-D6Z1B7Jq.js";import{y as m,z as p,A as g}from"./dataService-Bp3rTtkG.js";import"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm";let d=[];function f(){const r=document.getElementById("main-content");r&&(r.innerHTML=`
     <!-- Master-Detail Container -->
     <div class="bg-white rounded-lg shadow-lg overflow-hidden">
       <!-- 
