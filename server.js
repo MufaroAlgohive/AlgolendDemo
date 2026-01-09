@@ -15,18 +15,26 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
     'http://localhost:5001',
     'http://localhost:5173',
+    'http://127.0.0.1:5001',
     'https://algolend-demo.vercel.app'
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
+        // 1. Allow internal Codespace/Local requests (no origin)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
+        
+        // 2. Allow if in our fixed list
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
         }
-        return callback(null, true);
+
+        // 3. ADAPTIVE: Allow any .vercel.app or .githubpreview.dev (Codespace) URLs
+        if (origin.endsWith('.vercel.app') || origin.endsWith('.githubpreview.dev')) {
+            return callback(null, true);
+        }
+
+        return callback(new Error('CORS blocked by server'), false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
