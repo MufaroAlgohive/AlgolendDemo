@@ -2,6 +2,7 @@ import { resolve } from 'path';
 
 export default {
   base: '/admin/', 
+  envDir: '../../',
  
   server: {
     host: true,
