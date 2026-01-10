@@ -738,7 +738,7 @@ const resolveAdminFile = (fileName) => {
 if (adminBuildExists) {
     // ★★★ THIS IS THE FIX YOU NEEDED ★★★
     // This captures requests to /assets/... and points them to public/admin/dist/assets
-    app.use('/assets', express.static(adminAssetsPath));
+    app.use('/admin/assets', express.static(adminAssetsPath));
 
     // Fallback for cached asset names (serves latest hash when old file requested)
     app.get('/assets/:assetName', (req, res, next) => {
