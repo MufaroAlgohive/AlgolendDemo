@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "npm install && npm install --prefix public/admin && npm run build --prefix public/admin"
+    "build": "npm install && npm install --prefix public/admin && cd public/admin && VITE_SUPABASE_URL=$VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY npm run build"
   },
   "keywords": [],
   "author": "",

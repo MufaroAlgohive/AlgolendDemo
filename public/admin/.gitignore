@@ -12,7 +12,7 @@
 .vitepress/dist
 
 # Compiled files
-*.log
+*.loga
 *.css.map
 *.js.map
 
