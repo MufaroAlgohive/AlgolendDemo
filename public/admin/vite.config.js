@@ -1,7 +1,7 @@
 import { resolve } from 'path';
 
 export default {
-  base: './', 
+  base: '/admin/', 
  
   server: {
     host: true,
