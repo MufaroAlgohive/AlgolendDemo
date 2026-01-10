@@ -2,6 +2,11 @@
   "version": 2,
   "builds": [
     {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "public/admin/dist" }
+    },
+    {
       "src": "server.js",
       "use": "@vercel/node"
     }
@@ -13,15 +18,5 @@
     { "source": "/shared/:path*", "destination": "/public/shared/:path*" },
     { "source": "/Services/:path*", "destination": "/public/Services/:path*" },
     { "source": "/((?!admin|api|shared|Services|assets|.*\\..*).*)", "destination": "/server.js" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self' https://zw-express.vercel.app http://localhost:5001 https://algolend-demo.vercel.app;" },
-        { "key": "X-Frame-Options", "value": "ALLOWALL" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" }
-      ]
-    }
   ]
 }
