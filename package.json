@@ -1,13 +1,13 @@
 {
-  "name": "zwane-finance",
+  "name": "AlgoLend",
   "version": "1.0.0",
-  "description": "Zwane Finance Web Application",
+  "description": "AlgoLend Web Application",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "build": "npm install --prefix public/admin && npm run build --prefix public/admin"
-  },
+  "start": "node server.js",
+  "dev": "node server.js",
+  "build": "npm install && npm install --prefix public/admin && npm run build --prefix public/admin"
+}
   "keywords": [],
   "author": "",
   "license": "ISC",
